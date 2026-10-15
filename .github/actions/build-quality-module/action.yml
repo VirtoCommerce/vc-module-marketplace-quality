@@ -1,0 +1,17 @@
+# v2.0.0
+name: Build Quality Module
+
+runs:
+  using: composite
+
+  steps:
+
+    - name: Install dependencies for Quality Module
+      shell: bash
+      working-directory: src/VirtoCommerce.MarketplaceQuality.Web/vcmp-quality
+      run: yarn
+
+    - name: Build Quality Module
+      shell: bash
+      working-directory:  src/VirtoCommerce.MarketplaceQuality.Web/vcmp-quality
+      run: yarn build:modules-bundle
