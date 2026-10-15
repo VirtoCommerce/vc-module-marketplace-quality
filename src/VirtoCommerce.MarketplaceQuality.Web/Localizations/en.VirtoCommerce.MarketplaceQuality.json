@@ -1,0 +1,24 @@
+{
+  "marketplace-quality": {
+    "blades": {
+      "hello-world": {
+        "title": "Hello world blade"
+      }
+    }
+  },
+  "permissions": {
+    "marketplace-quality:access": "Open MarketplaceQuality menu",
+    "marketplace-quality:create": "Create MarketplaceQuality related data",
+    "marketplace-quality:read": "View MarketplaceQuality related data",
+    "marketplace-quality:update": "Update MarketplaceQuality related data",
+    "marketplace-quality:delete": "Delete MarketplaceQuality related data"
+  },
+  "settings": {
+    "MarketplaceQuality": {
+      "Enabled": {
+        "title": "MarketplaceQuality Enabled",
+        "description": "MarketplaceQuality Enabled setting"
+      }
+    }
+  }
+}

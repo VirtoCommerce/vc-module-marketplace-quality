@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <SonarQubeTestProject>false</SonarQubeTestProject>
+    <NoWarn>1591;NU1608</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="dist\**" />
+    <Content Remove="dist\**" />
+    <EmbeddedResource Remove="dist\**" />
+    <None Remove="dist\**" />
+    <Compile Remove="vcmp-quality\**" />
+    <Content Remove="vcmp-quality\**" />
+    <EmbeddedResource Remove="vcmp-quality\**" />
+    <None Remove="vcmp-quality\**" />
+    <Compile Remove="plugins\**" />
+    <Content Remove="plugins\**" />
+    <EmbeddedResource Remove="plugins\**" />
+    <None Remove="plugins\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <PluginRemotes Include="plugins\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Update="Localizations\**">
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\VirtoCommerce.MarketplaceQuality.Core\VirtoCommerce.MarketplaceQuality.Core.csproj" />
+    <ProjectReference Include="..\VirtoCommerce.MarketplaceQuality.Data\VirtoCommerce.MarketplaceQuality.Data.csproj" />
+    <ProjectReference Include="..\VirtoCommerce.MarketplaceQuality.Data.MySql\VirtoCommerce.MarketplaceQuality.Data.MySql.csproj" />
+    <ProjectReference Include="..\VirtoCommerce.MarketplaceQuality.Data.PostgreSql\VirtoCommerce.MarketplaceQuality.Data.PostgreSql.csproj" />
+    <ProjectReference Include="..\VirtoCommerce.MarketplaceQuality.Data.SqlServer\VirtoCommerce.MarketplaceQuality.Data.SqlServer.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="ai\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <AiFolder Include="ai\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Scripts\blades\" />
+  </ItemGroup>
+
+  <Target Name="CopyCustomContentOnPublish" AfterTargets="Publish">
+    <Copy SourceFiles="@(PluginRemotes)" DestinationFiles="$(PublishDir)\..\plugins\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Copy SourceFiles="@(AiFolder)" DestinationFiles="$(PublishDir)\..\%(Identity)" />
+  </Target>
+  
+</Project>

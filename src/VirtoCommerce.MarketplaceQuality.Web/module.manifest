@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<module>
+  <id>VirtoCommerce.MarketplaceQuality</id>
+  <version>3.1000.0</version>
+  <version-tag></version-tag>
+
+  <platformVersion>3.1071.0</platformVersion>
+  <dependencies>
+    <!--<dependency id="VirtoCommerce.Core" version="3.1012.0" />-->
+    <dependency id="VirtoCommerce.MarketplaceVendor" version="3.1002.0" />
+    <dependency id="VirtoCommerce.CatalogQuality" version="3.1000.0" />
+  </dependencies>
+
+  <title>VirtoCommerce MarketplaceQuality</title>
+  <description>VirtoCommerce MarketplaceQuality</description>
+
+  <authors>
+    <author>Vladimir Buravlev</author>
+  </authors>
+  <owners>
+    <owner>VirtoCommerce</owner>
+  </owners>
+
+  <projectUrl>https://github.com/VirtoCommerce/vc-module-marketplace-quality</projectUrl>
+  <iconUrl>Modules/$(VirtoCommerce.MarketplaceQuality)/Content/logo.png</iconUrl>
+  <requireLicenseAcceptance>false</requireLicenseAcceptance>
+
+  <assemblyFile>VirtoCommerce.MarketplaceQuality.Web.dll</assemblyFile>
+  <moduleType>VirtoCommerce.MarketplaceQuality.Web.Module, VirtoCommerce.MarketplaceQuality.Web</moduleType>
+
+  <releaseNotes>First version.</releaseNotes>
+  <copyright>Copyright © 2026 VirtoCommerce. All rights reserved</copyright>
+  <tags>extension module</tags>
+  <useFullTypeNameInSwagger>false</useFullTypeNameInSwagger>
+</module>

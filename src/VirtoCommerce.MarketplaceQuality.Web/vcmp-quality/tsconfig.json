@@ -1,0 +1,11 @@
+{
+  "extends": "@vc-shell/ts-config/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": ["vite/client", "@vc-shell/framework/globals"]
+  },
+  "include": ["./src/**/*.ts", "./src/**/*.vue", "./src/**/*.json"],
+  "exclude": ["./src/**/*.test.ts", "./src/test/**"]
+}

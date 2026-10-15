@@ -1,0 +1,31 @@
+{
+  "QUALITY": {
+    "WIDGET": {
+      "TITLE": "Quality"
+    },
+    "TARGETS": {
+      "TITLE": "Quality targets",
+      "TOOLBAR": {
+        "REFRESH": "Refresh"
+      },
+      "TABLE": {
+        "HEADER": {
+          "NAME": "Name",
+          "SCORE": "Score"
+        },
+        "NOT_SCORED": "N/A"
+      },
+      "EMPTY": {
+        "NO_ITEMS": "No quality targets defined"
+      }
+    },
+    "EVALUATION": {
+      "TITLE": "Quality evaluation",
+      "TOOLBAR": {
+        "REFRESH": "Refresh"
+      },
+      "EVALUATED": "Evaluated {date}",
+      "NOT_SCORED": "This product has not been scored for this target yet."
+    }
+  }
+}
