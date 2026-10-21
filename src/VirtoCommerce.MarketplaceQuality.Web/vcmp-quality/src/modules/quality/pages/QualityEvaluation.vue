@@ -57,7 +57,7 @@ defineBlade({
 });
 
 const { param, options } = useBlade<{
-  stagedProductDataId?: string;
+  sellerProductId?: string;
   productName?: string;
   product?: QualityProduct;
   targetName?: string;
@@ -99,8 +99,8 @@ const bladeToolbar = ref<IBladeToolbar[]>([
 ]);
 
 async function reload() {
-  if (!options.value?.stagedProductDataId || !param.value) return;
-  await loadEvaluation({ entityId: options.value.stagedProductDataId, targetId: param.value });
+  if (!options.value?.sellerProductId || !param.value) return;
+  await loadEvaluation({ entityId: options.value.sellerProductId, targetId: param.value });
 }
 
 onMounted(async () => {

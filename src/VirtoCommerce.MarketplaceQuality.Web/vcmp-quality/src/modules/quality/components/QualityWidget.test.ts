@@ -44,7 +44,7 @@ describe("QualityWidget.vue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockBlade = createMockBlade();
-    bladeContext = ref({ item: { id: "prod-1", name: "Gift Box", stagedProductDataId: "staged-1" } });
+    bladeContext = ref({ item: { id: "prod-1", name: "Gift Box" } });
     countProductId = undefined;
     mockCount = { count: ref(4), loading: ref(false), refresh: vi.fn() };
   });
@@ -79,7 +79,7 @@ describe("QualityWidget.vue", () => {
     expect(wrapper.findComponent({ name: "VcWidget" }).props("disabled")).toBe(true);
   });
 
-  it("opens the targets blade with the staged product id and name on click", async () => {
+  it("opens the targets blade with the seller product id and name on click", async () => {
     const wrapper = await mountBlade(QualityWidget);
 
     await wrapper.find("button").trigger("click");
@@ -87,9 +87,9 @@ describe("QualityWidget.vue", () => {
     expect(mockBlade.openBlade).toHaveBeenCalledWith({
       name: "QualityTargets",
       options: {
-        stagedProductDataId: "staged-1",
+        sellerProductId: "prod-1",
         productName: "Gift Box",
-        product: { id: "prod-1", name: "Gift Box", stagedProductDataId: "staged-1" },
+        product: { id: "prod-1", name: "Gift Box" },
       },
     });
   });
@@ -102,7 +102,7 @@ describe("QualityWidget.vue", () => {
     await wrapper.find("button").trigger("click");
     expect(mockBlade.openBlade).toHaveBeenCalledWith({
       name: "QualityTargets",
-      options: { stagedProductDataId: undefined, productName: undefined, product: undefined },
+      options: { sellerProductId: undefined, productName: undefined, product: undefined },
     });
   });
 });

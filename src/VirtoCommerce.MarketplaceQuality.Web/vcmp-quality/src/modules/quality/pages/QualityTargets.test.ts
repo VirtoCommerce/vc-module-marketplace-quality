@@ -74,7 +74,7 @@ vi.mock("../composables", () => ({
 const useAiAgentContext = vi.fn();
 vi.mock("@vc-shell/framework/ai-agent", () => ({ useAiAgentContext }));
 
-const product = { id: "prod-1", name: "Gift Box", stagedProductDataId: "staged-1", objectType: "SellerProduct" };
+const product = { id: "prod-1", name: "Gift Box", objectType: "SellerProduct" };
 
 // ---------------------------------------------------------------------------
 // Dynamic import of the component (MUST come AFTER vi.mock declarations)
@@ -82,7 +82,7 @@ const product = { id: "prod-1", name: "Gift Box", stagedProductDataId: "staged-1
 const QualityTargets = (await import("./QualityTargets.vue")).default;
 
 function initMocks(
-  options: Record<string, unknown> = { stagedProductDataId: "staged-1", productName: "Gift Box", product },
+  options: Record<string, unknown> = { sellerProductId: "prod-1", productName: "Gift Box", product },
 ) {
   mockBlade = createMockBlade({ options: ref(options) });
   mockSort = createSort();
@@ -130,11 +130,11 @@ describe("QualityTargets.vue", () => {
     expect(mockTargets.searchTargets).toHaveBeenCalledWith({ take: 20, skip: 0, sort: "name:ASC" });
   });
 
-  it("loads the product's scores on mount by staged product id", async () => {
+  it("loads the product's scores on mount by seller product id", async () => {
     await mountBlade(QualityTargets);
     await flushPromises();
 
-    expect(mockScores.loadScores).toHaveBeenCalledWith("staged-1");
+    expect(mockScores.loadScores).toHaveBeenCalledWith("prod-1");
   });
 
   it.each([
@@ -198,7 +198,7 @@ describe("QualityTargets.vue", () => {
       name: "QualityEvaluation",
       param: "t2",
       options: {
-        stagedProductDataId: "staged-1",
+        sellerProductId: "prod-1",
         productName: "Gift Box",
         product,
         targetName: "Catalog Translating",
@@ -217,7 +217,7 @@ describe("QualityTargets.vue", () => {
   });
 
   it("gives the AI assistant no item when the blade was opened without a product", async () => {
-    initMocks({ stagedProductDataId: "staged-1" });
+    initMocks({ sellerProductId: "prod-1" });
     await mountBlade(QualityTargets);
 
     expect(useAiAgentContext.mock.calls[0][0].dataRef.value).toBeUndefined();
@@ -249,7 +249,7 @@ describe("QualityTargets.vue", () => {
     await flushPromises();
 
     expect(mockTargets.searchTargets).toHaveBeenCalledTimes(1);
-    expect(mockScores.loadScores).toHaveBeenCalledWith("staged-1");
+    expect(mockScores.loadScores).toHaveBeenCalledWith("prod-1");
   });
 
   it("refresh toolbar button reloads targets and scores and is bound to the R hotkey", async () => {

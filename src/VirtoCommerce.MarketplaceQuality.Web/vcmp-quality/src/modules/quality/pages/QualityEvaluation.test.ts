@@ -53,7 +53,7 @@ function initMocks(
   mockBlade = createMockBlade({
     param: ref<string | undefined>("param" in overrides ? overrides.param : "target-1"),
     options: ref(
-      overrides.options ?? { stagedProductDataId: "staged-1", productName: "Gift Box", targetName: "SEO" },
+      overrides.options ?? { sellerProductId: "prod-1", productName: "Gift Box", targetName: "SEO" },
     ),
   });
 
@@ -75,14 +75,14 @@ describe("QualityEvaluation.vue", () => {
   // =========================================================================
   // Loading
   // =========================================================================
-  it("loads the evaluation for the staged product and the target on mount", async () => {
+  it("loads the evaluation for the seller product and the target on mount", async () => {
     await mountBlade(QualityEvaluation);
     await flushPromises();
 
-    expect(mockEvaluation.loadEvaluation).toHaveBeenCalledWith({ entityId: "staged-1", targetId: "target-1" });
+    expect(mockEvaluation.loadEvaluation).toHaveBeenCalledWith({ entityId: "prod-1", targetId: "target-1" });
   });
 
-  it("does not load without a staged product id", async () => {
+  it("does not load without a seller product id", async () => {
     initMocks({ options: { productName: "Gift Box" } });
 
     await mountBlade(QualityEvaluation);
@@ -117,8 +117,8 @@ describe("QualityEvaluation.vue", () => {
   // AI assistant context
   // =========================================================================
   it("gives the AI assistant the product together with the opened quality target", async () => {
-    const product = { id: "prod-1", name: "Gift Box", stagedProductDataId: "staged-1" };
-    initMocks({ options: { stagedProductDataId: "staged-1", targetName: "Catalog Translating", product } });
+    const product = { id: "prod-1", name: "Gift Box" };
+    initMocks({ options: { sellerProductId: "prod-1", targetName: "Catalog Translating", product } });
     await mountBlade(QualityEvaluation);
 
     expect(useAiAgentContext).toHaveBeenCalledTimes(1);
@@ -137,7 +137,7 @@ describe("QualityEvaluation.vue", () => {
   });
 
   it("gives the AI assistant no item when the blade was opened without a product", async () => {
-    initMocks({ options: { stagedProductDataId: "staged-1", targetName: "SEO" } });
+    initMocks({ options: { sellerProductId: "prod-1", targetName: "SEO" } });
     await mountBlade(QualityEvaluation);
 
     expect(useAiAgentContext.mock.calls[0][0].dataRef.value).toBeUndefined();
@@ -153,7 +153,7 @@ describe("QualityEvaluation.vue", () => {
   });
 
   it("omits missing names from the subtitle", async () => {
-    initMocks({ options: { stagedProductDataId: "staged-1", targetName: "SEO" } });
+    initMocks({ options: { sellerProductId: "prod-1", targetName: "SEO" } });
     const wrapper = await mountBlade(QualityEvaluation);
 
     expect(wrapper.findComponent({ name: "VcBlade" }).props("subtitle")).toBe("SEO");

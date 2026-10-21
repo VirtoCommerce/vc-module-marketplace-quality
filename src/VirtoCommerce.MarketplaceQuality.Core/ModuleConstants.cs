@@ -30,19 +30,20 @@ public static class ModuleConstants
     {
         public static class General
         {
-            public static SettingDescriptor MarketplaceQualityEnabled { get; } = new()
+            public static readonly SettingDescriptor MarketplaceQualityTargets = new()
             {
-                Name = "MarketplaceQuality.Enabled",
+                Name = "MarketplaceQuality.Targets",
+                ValueType = SettingValueType.ShortText,
                 GroupName = "MarketplaceQuality|General",
-                ValueType = SettingValueType.Boolean,
-                DefaultValue = false,
+                IsDictionary = true,
+                AllowedValues = ["Catalog Publishing"],
             };
 
             public static IEnumerable<SettingDescriptor> AllGeneralSettings
             {
                 get
                 {
-                    yield return MarketplaceQualityEnabled;
+                    yield return MarketplaceQualityTargets;
                 }
             }
         }

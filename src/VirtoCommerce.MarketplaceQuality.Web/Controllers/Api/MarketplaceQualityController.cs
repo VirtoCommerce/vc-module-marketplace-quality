@@ -1,23 +1,35 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-//using Permissions = VirtoCommerce.MarketplaceQuality.Core.ModuleConstants.Security.Permissions;
+using VirtoCommerce.CatalogQuality.Core.Common;
+using VirtoCommerce.MarketplaceQuality.Data.Queries;
+using Permissions = VirtoCommerce.CatalogQuality.Core.ModuleConstants.Security.Permissions;
 
 namespace VirtoCommerce.MarketplaceQuality.Web.Controllers.Api;
 
 [Authorize]
-[Route("api/marketplace-quality")]
+[Route("api/vcmp/quality")]
 public class MarketplaceQualityController : Controller
 {
-    // GET: api/marketplace-quality
-    // /// <summary>
-    // /// Get message
-    // /// </summary>
-    // /// <remarks>Return "Hello world!" message</remarks>
-    //[HttpGet]
-    //[Route("")]
-    //[Authorize(Permissions.Read)]
-    //public ActionResult<string> Get()
-    //{
-    //    return Ok(new { result = "Hello world!" });
-    //}
+    private readonly IMediator _mediator;
+
+    public MarketplaceQualityController(IMediator mediator)
+    {
+        _mediator = mediator;
+    }
+
+    /// <summary>
+    /// Get names of quality targets available on the marketplace
+    /// </summary>
+    [HttpGet]
+    [Route("target/names")]
+    [Authorize(Permissions.Read)]
+    public async Task<ActionResult<IList<string>>> GetTargetNames()
+    {
+        var query = ExType<GetTargetNamesQuery>.New();
+        var result = await _mediator.Send(query);
+        return Ok(result);
+    }
 }

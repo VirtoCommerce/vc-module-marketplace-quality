@@ -7,7 +7,5 @@ export interface QualityProduct {
   id?: string;
   name?: string;
   objectType?: string;
-  /** Catalog product the quality evaluations are stored under. */
-  stagedProductDataId?: string;
   [key: string]: unknown;
 }

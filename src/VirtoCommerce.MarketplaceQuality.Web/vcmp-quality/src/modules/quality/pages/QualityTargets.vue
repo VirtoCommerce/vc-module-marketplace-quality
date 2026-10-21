@@ -62,8 +62,8 @@ defineBlade({
 });
 
 const { openBlade, options, activeChildParam } = useBlade<{
-  /** Catalog product the evaluations are stored under. */
-  stagedProductDataId?: string;
+  /** Seller product the evaluations are stored under. */
+  sellerProductId?: string;
   productName?: string;
   product?: QualityProduct;
 }>();
@@ -117,7 +117,7 @@ async function reload() {
       skip: pagination.skip,
       sort: sortExpression.value,
     }),
-    loadScores(options.value?.stagedProductDataId),
+    loadScores(options.value?.sellerProductId),
   ]);
 }
 
@@ -126,7 +126,7 @@ function onItemClick(event: { data: QualityTarget }) {
     name: "QualityEvaluation",
     param: event.data.id,
     options: {
-      stagedProductDataId: options.value?.stagedProductDataId,
+      sellerProductId: options.value?.sellerProductId,
       productName: options.value?.productName,
       product: options.value?.product,
       targetName: event.data.name,

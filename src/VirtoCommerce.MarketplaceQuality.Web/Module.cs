@@ -2,11 +2,17 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.CatalogQuality.Core.Events;
 using VirtoCommerce.MarketplaceQuality.Core;
+using VirtoCommerce.MarketplaceQuality.Core.Services;
+using VirtoCommerce.MarketplaceQuality.Data;
+using VirtoCommerce.MarketplaceQuality.Data.Handlers;
 using VirtoCommerce.MarketplaceQuality.Data.MySql;
 using VirtoCommerce.MarketplaceQuality.Data.PostgreSql;
 using VirtoCommerce.MarketplaceQuality.Data.Repositories;
+using VirtoCommerce.MarketplaceQuality.Data.Services;
 using VirtoCommerce.MarketplaceQuality.Data.SqlServer;
+using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.Platform.Data.MySql.Extensions;
@@ -41,12 +47,11 @@ public class Module : IModule, IHasConfiguration
             }
         });
 
-        // Override models
-        //AbstractTypeFactory<OriginalModel>.OverrideType<OriginalModel, ExtendedModel>().MapToType<ExtendedEntity>();
-        //AbstractTypeFactory<OriginalEntity>.OverrideType<OriginalEntity, ExtendedEntity>();
+        serviceCollection.AddTransient<IMarketplaceQualityService, MarketplaceQualityService>();
 
-        // Register services
-        //serviceCollection.AddTransient<IMyService, MyService>();
+        serviceCollection.AddTransient<TargetChangedEventEventHandler>();
+
+        serviceCollection.AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<Anchor>());
     }
 
     public void PostInitialize(IApplicationBuilder appBuilder)
@@ -60,6 +65,8 @@ public class Module : IModule, IHasConfiguration
         // Register permissions
         //var permissionsRegistrar = serviceProvider.GetRequiredService<IPermissionsRegistrar>();
         //permissionsRegistrar.RegisterPermissions(ModuleInfo.Id, "MarketplaceQuality", ModuleConstants.Security.Permissions.AllPermissions);
+
+        appBuilder.RegisterEventHandler<TargetChangedEvent, TargetChangedEventEventHandler>();
 
         // Apply migrations
         using var serviceScope = serviceProvider.CreateScope();

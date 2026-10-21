@@ -36,10 +36,10 @@ describe("useProductQualityScores", () => {
     client.dataSearch.mockResolvedValue({ results: [], totalCount: 0 });
 
     const { loadScores } = useProductQualityScores();
-    await loadScores("staged-1");
+    await loadScores("prod-1");
 
     expect(client.dataSearch).toHaveBeenCalledWith({
-      entityId: "staged-1",
+      entityId: "prod-1",
       entityType: QUALITY_PRODUCT_ENTITY_TYPE,
       skip: 0,
       take: 100,
@@ -56,7 +56,7 @@ describe("useProductQualityScores", () => {
     });
 
     const { loadScores, scores } = useProductQualityScores();
-    await loadScores("staged-1");
+    await loadScores("prod-1");
 
     expect(scores.value).toEqual({ t1: 53, t2: 0 });
   });
@@ -65,7 +65,7 @@ describe("useProductQualityScores", () => {
     client.dataSearch.mockResolvedValue({ results: [{ targetId: "t1" }], totalCount: 1 });
 
     const { loadScores, scores } = useProductQualityScores();
-    await loadScores("staged-1");
+    await loadScores("prod-1");
 
     expect(scores.value).toEqual({ t1: 0 });
   });
@@ -74,7 +74,7 @@ describe("useProductQualityScores", () => {
     client.dataSearch.mockResolvedValue({ results: [{ readinessScore: 90 }], totalCount: 1 });
 
     const { loadScores, scores } = useProductQualityScores();
-    await loadScores("staged-1");
+    await loadScores("prod-1");
 
     expect(scores.value).toEqual({});
   });
@@ -86,7 +86,7 @@ describe("useProductQualityScores", () => {
       .mockResolvedValueOnce({ results: [{ targetId: "t100", readinessScore: 100 }], totalCount: 101 });
 
     const { loadScores, scores } = useProductQualityScores();
-    await loadScores("staged-1");
+    await loadScores("prod-1");
 
     expect(client.dataSearch).toHaveBeenCalledTimes(2);
     expect(client.dataSearch).toHaveBeenLastCalledWith(expect.objectContaining({ skip: 100 }));
@@ -97,7 +97,7 @@ describe("useProductQualityScores", () => {
     client.dataSearch.mockResolvedValue({ results: [], totalCount: 5 });
 
     const { loadScores } = useProductQualityScores();
-    await loadScores("staged-1");
+    await loadScores("prod-1");
 
     expect(client.dataSearch).toHaveBeenCalledTimes(1);
   });
@@ -106,7 +106,7 @@ describe("useProductQualityScores", () => {
     client.dataSearch.mockResolvedValue({ results: [{ targetId: "t1", readinessScore: 53 }], totalCount: 1 });
 
     const { loadScores, scores } = useProductQualityScores();
-    await loadScores("staged-1");
+    await loadScores("prod-1");
     client.dataSearch.mockClear();
     await loadScores(undefined);
 
@@ -120,8 +120,8 @@ describe("useProductQualityScores", () => {
       .mockResolvedValueOnce({ results: [{ targetId: "t2", readinessScore: 70 }], totalCount: 1 });
 
     const { loadScores, scores } = useProductQualityScores();
-    await loadScores("staged-1");
-    await loadScores("staged-1");
+    await loadScores("prod-1");
+    await loadScores("prod-1");
 
     expect(scores.value).toEqual({ t2: 70 });
   });

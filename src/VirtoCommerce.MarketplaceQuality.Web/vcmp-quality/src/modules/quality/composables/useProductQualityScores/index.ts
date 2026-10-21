@@ -9,7 +9,7 @@ export interface IUseProductQualityScores {
   loading: ComputedRef<boolean>;
   /** Readiness score by target id. A target without an entry has not been scored for this product. */
   scores: Ref<Record<string, number>>;
-  /** Loads the scores of every target for a catalog product — for a seller product, its stagedProductDataId. */
+  /** Loads the scores of every target for a seller product. */
   loadScores: (entityId?: string) => Promise<void>;
 }
 

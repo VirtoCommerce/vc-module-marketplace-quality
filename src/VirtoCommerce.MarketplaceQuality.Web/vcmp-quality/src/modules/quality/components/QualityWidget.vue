@@ -26,7 +26,7 @@ function onClick() {
   openBlade({
     name: "QualityTargets",
     options: {
-      stagedProductDataId: product.value?.stagedProductDataId,
+      sellerProductId: product.value?.id,
       productName: product.value?.name,
       product: product.value,
     },
