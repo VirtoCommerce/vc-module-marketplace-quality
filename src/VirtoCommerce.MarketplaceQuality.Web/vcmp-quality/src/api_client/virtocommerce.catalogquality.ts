@@ -389,6 +389,7 @@ export interface QualityData {
 
 export interface QualityTarget {
     name?: string | undefined;
+    entityType?: string | undefined;
     description?: string | undefined;
     prompt?: string | undefined;
     createdDate?: Date;
@@ -420,6 +421,7 @@ export interface SearchQualityDataResult {
 }
 
 export interface SearchQualityTargetQuery {
+    entityType?: string | undefined;
     responseGroup?: string | undefined;
     objectType?: string | undefined;
     objectTypes?: string[] | undefined;

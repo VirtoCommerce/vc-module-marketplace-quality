@@ -4,7 +4,7 @@ import {
   type SearchQualityTargetQuery,
   type SearchQualityTargetResult,
 } from "../../../../api_client/virtocommerce.catalogquality";
-import { MarketplaceQualityClient } from "../../../../api_client/virtocommerce.marketplacequality";
+import { QUALITY_PRODUCT_ENTITY_TYPE } from "../useQualityEvaluation";
 import { computed, type ComputedRef, type Ref, ref } from "vue";
 import {
   useApiClient,
@@ -28,44 +28,26 @@ interface IUseQualityTargetsOptions {
   stateKey?: string;
 }
 
-// Big enough to load every target in one request.
-export const ALL_TARGETS_TAKE = 1000;
-
 // Quality targets are global in the catalog-quality module: the same set applies to every product.
-// Only the targets available on the marketplace are shown.
+// Only the targets of the seller product entity type are shown.
 export function useQualityTargets(options?: IUseQualityTargetsOptions): IUseQualityTargets {
   const pageSize = options?.pageSize || 20;
 
   const { getApiClient } = useApiClient(CatalogQualityClient);
-  const { getApiClient: getMarketplaceApiClient } = useApiClient(MarketplaceQualityClient);
 
-  const searchQuery = ref<SearchQualityTargetQuery>({ take: pageSize });
+  const searchQuery = ref<SearchQualityTargetQuery>({ entityType: QUALITY_PRODUCT_ENTITY_TYPE, take: pageSize });
   const searchResult = ref<SearchQualityTargetResult>();
 
   const search = useLatestRequest();
 
   const { action: searchTargets, loading } = useAsync<SearchQualityTargetQuery>(async (query) => {
     const client = await getApiClient();
-    const marketplaceClient = await getMarketplaceApiClient();
     searchQuery.value = { ...searchQuery.value, ...query };
 
-    const response = await search.latest(
-      Promise.all([
-        client.targetSearch({ ...searchQuery.value, skip: 0, take: ALL_TARGETS_TAKE }),
-        marketplaceClient.getTargetNames(),
-      ]),
-    );
+    const result = await search.latest(client.targetSearch(searchQuery.value));
     // A newer search superseded this one; its answer is the one that counts.
-    if (!response) return;
-
-    const [result, names] = response;
-    const marketplaceTargets = (result?.results ?? []).filter((x) => x.name && names?.includes(x.name));
-    const skip = searchQuery.value.skip ?? 0;
-
-    searchResult.value = {
-      totalCount: marketplaceTargets.length,
-      results: marketplaceTargets.slice(skip, skip + pageSize),
-    };
+    if (!result) return;
+    searchResult.value = result;
   });
 
   const pagination = useDataTablePagination({

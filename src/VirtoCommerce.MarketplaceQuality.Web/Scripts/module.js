@@ -27,17 +27,19 @@ angular.module(moduleName, [])
             //    });
         }
     ])
-    .run(['platformWebApp.mainMenuService', '$state',
-        function (mainMenuService, $state) {
-            //Register module in main menu
-            //var menuItem = {
-            //    path: 'browse/marketplace-quality',
-            //    icon: 'fa fa-cube',
-            //    title: 'MarketplaceQuality',
-            //    priority: 100,
-            //    action: function () { $state.go('workspace.MarketplaceQualityState'); },
-            //    permission: 'marketplace-quality:access',
-            //};
-            //mainMenuService.addMenuItem(menuItem);
+    .run(['$state', 'virtoCommerce.catalogQuality.qualityDataTypes',
+        function ($state, qualityDataTypes) {
+
+            // Seller product quality scoring entity type registration
+            qualityDataTypes.addType({
+                caption: 'quality-data-entity-types.seller-product',
+                value: 'VirtoCommerce.MarketplaceVendorModule.Core.Domains.SellerProduct'
+            });
+
+            // Seller product quality scoring entity type registration
+            qualityDataTypes.addType({
+                caption: 'quality-data-entity-types.seller-offer',
+                value: 'VirtoCommerce.MarketplaceVendorModule.Core.Domains.Offer'
+            });
         }
     ]);

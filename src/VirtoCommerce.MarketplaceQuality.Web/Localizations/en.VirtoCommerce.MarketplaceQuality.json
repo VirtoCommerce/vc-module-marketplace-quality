@@ -20,5 +20,9 @@
         "description": "MarketplaceQuality Enabled setting"
       }
     }
+  },
+  "quality-data-entity-types": {
+    "seller-product": "Seller product",
+    "seller-offer": "Seller offer"
   }
 }

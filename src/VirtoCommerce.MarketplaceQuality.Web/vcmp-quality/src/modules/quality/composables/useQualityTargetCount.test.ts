@@ -6,7 +6,7 @@ import { mockUseAsync } from "../../../test/harness/mockFramework";
 // ---------------------------------------------------------------------------
 // Shared mock state
 // ---------------------------------------------------------------------------
-let client: { targetSearch: ReturnType<typeof vi.fn>; getTargetNames: ReturnType<typeof vi.fn> };
+let client: { targetSearch: ReturnType<typeof vi.fn> };
 const getApiClientFn = vi.fn();
 
 // ---------------------------------------------------------------------------
@@ -21,28 +21,16 @@ vi.mock("../../../api_client/virtocommerce.catalogquality", () => ({
   CatalogQualityClient: class {},
 }));
 
-vi.mock("../../../api_client/virtocommerce.marketplacequality", () => ({
-  MarketplaceQualityClient: class {},
-}));
-
-vi.mock("./useQualityTargets", () => ({ ALL_TARGETS_TAKE: 1000 }));
-
 // ---------------------------------------------------------------------------
 // Dynamic import
 // ---------------------------------------------------------------------------
 const { useQualityTargetCount } = await import("./useQualityTargetCount");
+const { QUALITY_PRODUCT_ENTITY_TYPE } = await import("./useQualityEvaluation");
 
 describe("useQualityTargetCount", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Both API clients resolve to this one mock.
-    client = {
-      targetSearch: vi.fn().mockResolvedValue({
-        results: [{ name: "A" }, { name: "B" }, { name: "Not on marketplace" }, { name: "C" }],
-        totalCount: 4,
-      }),
-      getTargetNames: vi.fn().mockResolvedValue(["A", "B", "C"]),
-    };
+    client = { targetSearch: vi.fn().mockResolvedValue({ totalCount: 3 }) };
     getApiClientFn.mockResolvedValue(client);
   });
 
@@ -50,8 +38,8 @@ describe("useQualityTargetCount", () => {
     const { count } = useQualityTargetCount(ref("prod-1"));
     await flushPromises();
 
-    // All targets are loaded, then only the marketplace ones are counted.
-    expect(client.targetSearch).toHaveBeenCalledWith({ take: 1000 });
+    // take: 0 — only the total of the seller product targets is needed, not the targets themselves
+    expect(client.targetSearch).toHaveBeenCalledWith({ entityType: QUALITY_PRODUCT_ENTITY_TYPE, take: 0 });
     expect(count.value).toBe(3);
   });
 
@@ -99,7 +87,7 @@ describe("useQualityTargetCount", () => {
     expect(client.targetSearch).toHaveBeenCalledTimes(1);
   });
 
-  it("treats missing results as zero", async () => {
+  it("treats a missing total count as zero", async () => {
     client.targetSearch.mockResolvedValue({});
 
     const { count } = useQualityTargetCount(ref("prod-1"));
@@ -122,10 +110,10 @@ describe("useQualityTargetCount", () => {
     const { count, refresh } = useQualityTargetCount(ref("prod-1"));
     await flushPromises();
 
-    client.getTargetNames.mockResolvedValue(["A"]);
+    client.targetSearch.mockResolvedValue({ totalCount: 9 });
     await refresh();
 
     expect(client.targetSearch).toHaveBeenCalledTimes(2);
-    expect(count.value).toBe(1);
+    expect(count.value).toBe(9);
   });
 });

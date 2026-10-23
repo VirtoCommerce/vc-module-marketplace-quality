@@ -1,6 +1,3 @@
-using System.Collections.Generic;
-using VirtoCommerce.Platform.Core.Settings;
-
 namespace VirtoCommerce.MarketplaceQuality.Core;
 
 public static class ModuleConstants
@@ -26,34 +23,30 @@ public static class ModuleConstants
         //}
     }
 
-    public static class Settings
+    //public static class Settings
+    //{
+    //    public static class General
+    //    {
+    //        public static IEnumerable<SettingDescriptor> AllGeneralSettings
+    //        {
+    //            get
+    //            {
+    //                yield return MarketplaceQualityTargets;
+    //            }
+    //        }
+    //    }
+
+    //    public static IEnumerable<SettingDescriptor> AllSettings
+    //    {
+    //        get
+    //        {
+    //            return General.AllGeneralSettings;
+    //        }
+    //    }
+    //}
+
+    public static class QualityEntityType
     {
-        public static class General
-        {
-            public static readonly SettingDescriptor MarketplaceQualityTargets = new()
-            {
-                Name = "MarketplaceQuality.Targets",
-                ValueType = SettingValueType.ShortText,
-                GroupName = "MarketplaceQuality|General",
-                IsDictionary = true,
-                AllowedValues = ["Catalog Publishing"],
-            };
-
-            public static IEnumerable<SettingDescriptor> AllGeneralSettings
-            {
-                get
-                {
-                    yield return MarketplaceQualityTargets;
-                }
-            }
-        }
-
-        public static IEnumerable<SettingDescriptor> AllSettings
-        {
-            get
-            {
-                return General.AllGeneralSettings;
-            }
-        }
+        public const string SellerProduct = "VirtoCommerce.MarketplaceVendorModule.Core.Domains.SellerProduct";
     }
 }
