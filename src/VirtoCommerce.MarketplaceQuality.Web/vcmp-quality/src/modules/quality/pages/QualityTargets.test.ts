@@ -21,6 +21,11 @@ let mockScores: {
   loading: ReturnType<typeof ref<boolean>>;
   loadScores: ReturnType<typeof vi.fn>;
 };
+let mockScoring: {
+  scoring: ReturnType<typeof ref<boolean>>;
+  canScore: ReturnType<typeof ref<boolean>>;
+  runScoring: ReturnType<typeof vi.fn>;
+};
 
 function createSort() {
   const sortField = ref("name");
@@ -69,6 +74,7 @@ vi.mock("@vc-shell/framework/ui", () => ({
 vi.mock("../composables", () => ({
   useQualityTargets: () => mockTargets,
   useProductQualityScores: () => mockScores,
+  useQualityScoring: () => mockScoring,
 }));
 
 const useAiAgentContext = vi.fn();
@@ -100,6 +106,11 @@ function initMocks(
     scores: ref<Record<string, number>>({ t1: 53 }),
     loading: ref(false),
     loadScores: vi.fn().mockResolvedValue(undefined),
+  };
+  mockScoring = {
+    scoring: ref(false),
+    canScore: ref(true),
+    runScoring: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -140,6 +151,7 @@ describe("QualityTargets.vue", () => {
   it.each([
     ["targets", () => (mockTargets.loading.value = true)],
     ["scores", () => (mockScores.loading.value = true)],
+    ["the expert is scoring", () => (mockScoring.scoring.value = true)],
   ])("shows the table as loading while %s load", async (_label, setLoading) => {
     setLoading();
     const wrapper = await mountBlade(QualityTargets);
@@ -204,6 +216,80 @@ describe("QualityTargets.vue", () => {
         targetName: "Catalog Translating",
       },
     });
+  });
+
+  // =========================================================================
+  // Run scoring
+  // =========================================================================
+  it("run scoring closes the opened evaluation, calls the expert for the product, then reloads", async () => {
+    const wrapper = await mountBlade(QualityTargets);
+    await flushPromises();
+    mockTargets.searchTargets.mockClear();
+    mockScores.loadScores.mockClear();
+
+    await toolbarItem(wrapper, "runScoring").clickHandler();
+
+    expect(mockBlade.closeChildren).toHaveBeenCalledTimes(1);
+    expect(mockBlade.closeChildren.mock.invocationCallOrder[0]).toBeLessThan(
+      mockScoring.runScoring.mock.invocationCallOrder[0],
+    );
+    expect(mockScoring.runScoring).toHaveBeenCalledWith({
+      product: { id: "prod-1", name: "Gift Box", objectType: "SellerProduct" },
+      blade: { id: "test-blade-id", name: "QualityTargets", title: "QUALITY.TARGETS.TITLE" },
+      locale: expect.any(String),
+    });
+    expect(mockTargets.searchTargets).toHaveBeenCalledTimes(1);
+    expect(mockScores.loadScores).toHaveBeenCalledWith("prod-1");
+  });
+
+  it("run scoring falls back to the product name option without a product", async () => {
+    initMocks({ sellerProductId: "prod-1", productName: "Gift Box" });
+    const wrapper = await mountBlade(QualityTargets);
+
+    await toolbarItem(wrapper, "runScoring").clickHandler();
+
+    expect(mockScoring.runScoring.mock.calls[0][0].product).toEqual({
+      id: "prod-1",
+      name: "Gift Box",
+      objectType: undefined,
+    });
+  });
+
+  it("reloads the scores even when scoring fails", async () => {
+    mockScoring.runScoring.mockRejectedValue(new Error("503: agent failed"));
+    const wrapper = await mountBlade(QualityTargets);
+    await flushPromises();
+    mockScores.loadScores.mockClear();
+
+    await expect(toolbarItem(wrapper, "runScoring").clickHandler()).resolves.toBeUndefined();
+
+    expect(mockScores.loadScores).toHaveBeenCalledWith("prod-1");
+  });
+
+  it("does not run scoring without a seller product id", async () => {
+    initMocks({ productName: "Gift Box", product });
+    const wrapper = await mountBlade(QualityTargets);
+
+    expect(toolbarItem(wrapper, "runScoring").disabled).toBe(true);
+    await toolbarItem(wrapper, "runScoring").clickHandler();
+    expect(mockScoring.runScoring).not.toHaveBeenCalled();
+    expect(mockBlade.closeChildren).not.toHaveBeenCalled();
+  });
+
+  it("disables run scoring while scoring", async () => {
+    const wrapper = await mountBlade(QualityTargets);
+    const runScoring = toolbarItem(wrapper, "runScoring");
+
+    expect(runScoring.disabled).toBe(false);
+    mockScoring.scoring.value = true;
+    expect(runScoring.disabled).toBe(true);
+  });
+
+  it("hides run scoring when no AI agent is configured", async () => {
+    mockScoring.canScore.value = false;
+    const wrapper = await mountBlade(QualityTargets);
+
+    expect(toolbarItem(wrapper, "runScoring").isVisible).toBe(false);
   });
 
   // =========================================================================

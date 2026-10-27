@@ -2,11 +2,9 @@ import { CatalogQualityClient, type QualityData } from "../../../../api_client/v
 import { computed, type ComputedRef, type Ref, ref } from "vue";
 import { useApiClient, useAsync } from "@vc-shell/framework";
 
-/** Entity type the seller product evaluations are stored under in the catalog-quality module. */
 export const QUALITY_PRODUCT_ENTITY_TYPE = "VirtoCommerce.MarketplaceVendorModule.Core.Domains.SellerProduct";
 
 export interface IQualityEvaluationArgs {
-  /** Seller product id. */
   entityId: string;
   targetId: string;
 }
@@ -14,12 +12,10 @@ export interface IQualityEvaluationArgs {
 export interface IUseQualityEvaluation {
   loading: ComputedRef<boolean>;
   evaluation: Ref<QualityData | null>;
-  /** False when nothing was stored for this product and target — the agent has not scored it yet. */
   isScored: ComputedRef<boolean>;
   loadEvaluation: (args?: IQualityEvaluationArgs) => Promise<void>;
 }
 
-// Read-only: evaluations are written by the Marketplace Quality Expert AI agent; the module exposes no API to run one.
 export function useQualityEvaluation(): IUseQualityEvaluation {
   const { getApiClient } = useApiClient(CatalogQualityClient);
 

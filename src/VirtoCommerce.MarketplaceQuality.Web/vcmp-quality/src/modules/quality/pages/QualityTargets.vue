@@ -12,7 +12,7 @@
       :active-item-id="activeChildParam"
       data-test-id="product-quality-targets-table"
       class="tw-grow tw-basis-0"
-      :loading="loading || scoresLoading"
+      :loading="loading || scoresLoading || scoring"
       :items="targets"
       :total-count="pagination.totalCount"
       :pagination="pagination"
@@ -51,7 +51,7 @@ import { computed, onMounted, ref, watch, type Ref } from "vue";
 import { IBladeToolbar, useBlade, useDataTableSort, hotkey } from "@vc-shell/framework";
 import { useAiAgentContext } from "@vc-shell/framework/ai-agent";
 import { useI18n } from "vue-i18n";
-import { useQualityTargets, useProductQualityScores } from "../composables";
+import { useQualityTargets, useProductQualityScores, useQualityScoring } from "../composables";
 import type { QualityTarget } from "../../../api_client/virtocommerce.catalogquality";
 import type { QualityProduct } from "../types";
 
@@ -61,13 +61,13 @@ defineBlade({
   name: "QualityTargets",
 });
 
-const { openBlade, options, activeChildParam } = useBlade<{
+const { id: bladeId, openBlade, closeChildren, options, activeChildParam } = useBlade<{
   /** Seller product the evaluations are stored under. */
   sellerProductId?: string;
   productName?: string;
   product?: QualityProduct;
 }>();
-const { t } = useI18n({ useScope: "global" });
+const { t, locale } = useI18n({ useScope: "global" });
 
 // Same item the host ProductDetails blade sends, so the AI assistant knows which product this is about.
 useAiAgentContext({ dataRef: computed(() => options.value?.product) as Ref<QualityProduct> });
@@ -78,6 +78,8 @@ const { searchQuery, loading, pagination, targets, searchTargets } = useQualityT
 
 const { scores, loading: scoresLoading, loadScores } = useProductQualityScores();
 
+const { scoring, canScore, runScoring } = useQualityScoring();
+
 const { sortField, sortOrder, sortExpression } = useDataTableSort({
   stateKey: "product_quality_targets",
   initialField: "name",
@@ -85,6 +87,16 @@ const { sortField, sortOrder, sortExpression } = useDataTableSort({
 });
 
 const bladeToolbar = ref<IBladeToolbar[]>([
+  {
+    id: "runScoring",
+    title: computed(() => t("QUALITY.TARGETS.TOOLBAR.RUN_SCORING")),
+    icon: "lucide-sparkles",
+    isVisible: canScore,
+    disabled: computed(() => scoring.value || !options.value?.sellerProductId),
+    async clickHandler() {
+      await score();
+    },
+  },
   {
     id: "refresh",
     title: computed(() => t("QUALITY.TARGETS.TOOLBAR.REFRESH")),
@@ -119,6 +131,28 @@ async function reload() {
     }),
     loadScores(options.value?.sellerProductId),
   ]);
+}
+
+async function score() {
+  const sellerProductId = options.value?.sellerProductId;
+  if (!sellerProductId) return;
+
+  await closeChildren();
+  try {
+    await runScoring({
+      product: {
+        id: sellerProductId,
+        name: options.value?.product?.name ?? options.value?.productName,
+        objectType: options.value?.product?.objectType,
+      },
+      blade: { id: bladeId.value, name: "QualityTargets", title: t("QUALITY.TARGETS.TITLE") },
+      locale: locale.value,
+    });
+  } catch {
+    // useAsync has already shown the error notification
+  } finally {
+    await reload();
+  }
 }
 
 function onItemClick(event: { data: QualityTarget }) {
