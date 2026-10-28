@@ -22,10 +22,10 @@ vi.mock("../../../../api_client/virtocommerce.catalogquality", () => ({
 // ---------------------------------------------------------------------------
 // Dynamic import
 // ---------------------------------------------------------------------------
-const { useProductQualityScores } = await import("./index");
-const { QUALITY_PRODUCT_ENTITY_TYPE } = await import("../useQualityEvaluation");
+const { useQualityScores } = await import("./index");
+const { SELLER_PRODUCT_ENTITY_TYPE, OFFER_ENTITY_TYPE } = await import("../../entities");
 
-describe("useProductQualityScores", () => {
+describe("useQualityScores", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     client = { dataSearch: vi.fn() };
@@ -35,12 +35,12 @@ describe("useProductQualityScores", () => {
   it("searches the product's evaluations by entity", async () => {
     client.dataSearch.mockResolvedValue({ results: [], totalCount: 0 });
 
-    const { loadScores } = useProductQualityScores();
+    const { loadScores } = useQualityScores(SELLER_PRODUCT_ENTITY_TYPE);
     await loadScores("prod-1");
 
     expect(client.dataSearch).toHaveBeenCalledWith({
       entityId: "prod-1",
-      entityType: QUALITY_PRODUCT_ENTITY_TYPE,
+      entityType: SELLER_PRODUCT_ENTITY_TYPE,
       skip: 0,
       take: 100,
     });
@@ -55,7 +55,7 @@ describe("useProductQualityScores", () => {
       totalCount: 2,
     });
 
-    const { loadScores, scores } = useProductQualityScores();
+    const { loadScores, scores } = useQualityScores(SELLER_PRODUCT_ENTITY_TYPE);
     await loadScores("prod-1");
 
     expect(scores.value).toEqual({ t1: 53, t2: 0 });
@@ -64,7 +64,7 @@ describe("useProductQualityScores", () => {
   it("counts a stored evaluation without a score as zero", async () => {
     client.dataSearch.mockResolvedValue({ results: [{ targetId: "t1" }], totalCount: 1 });
 
-    const { loadScores, scores } = useProductQualityScores();
+    const { loadScores, scores } = useQualityScores(SELLER_PRODUCT_ENTITY_TYPE);
     await loadScores("prod-1");
 
     expect(scores.value).toEqual({ t1: 0 });
@@ -73,7 +73,7 @@ describe("useProductQualityScores", () => {
   it("skips evaluations without a target id", async () => {
     client.dataSearch.mockResolvedValue({ results: [{ readinessScore: 90 }], totalCount: 1 });
 
-    const { loadScores, scores } = useProductQualityScores();
+    const { loadScores, scores } = useQualityScores(SELLER_PRODUCT_ENTITY_TYPE);
     await loadScores("prod-1");
 
     expect(scores.value).toEqual({});
@@ -85,7 +85,7 @@ describe("useProductQualityScores", () => {
       .mockResolvedValueOnce({ results: firstPage, totalCount: 101 })
       .mockResolvedValueOnce({ results: [{ targetId: "t100", readinessScore: 100 }], totalCount: 101 });
 
-    const { loadScores, scores } = useProductQualityScores();
+    const { loadScores, scores } = useQualityScores(SELLER_PRODUCT_ENTITY_TYPE);
     await loadScores("prod-1");
 
     expect(client.dataSearch).toHaveBeenCalledTimes(2);
@@ -96,7 +96,7 @@ describe("useProductQualityScores", () => {
   it("stops when a page comes back empty even if the total says otherwise", async () => {
     client.dataSearch.mockResolvedValue({ results: [], totalCount: 5 });
 
-    const { loadScores } = useProductQualityScores();
+    const { loadScores } = useQualityScores(SELLER_PRODUCT_ENTITY_TYPE);
     await loadScores("prod-1");
 
     expect(client.dataSearch).toHaveBeenCalledTimes(1);
@@ -105,10 +105,29 @@ describe("useProductQualityScores", () => {
   it("clears scores without calling the API when there is no product id", async () => {
     client.dataSearch.mockResolvedValue({ results: [{ targetId: "t1", readinessScore: 53 }], totalCount: 1 });
 
-    const { loadScores, scores } = useProductQualityScores();
+    const { loadScores, scores } = useQualityScores(SELLER_PRODUCT_ENTITY_TYPE);
     await loadScores("prod-1");
     client.dataSearch.mockClear();
     await loadScores(undefined);
+
+    expect(client.dataSearch).not.toHaveBeenCalled();
+    expect(scores.value).toEqual({});
+  });
+
+  it("searches under the given entity type", async () => {
+    client.dataSearch.mockResolvedValue({ results: [], totalCount: 0 });
+
+    const { loadScores } = useQualityScores(OFFER_ENTITY_TYPE);
+    await loadScores("offer-1");
+
+    expect(client.dataSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ entityId: "offer-1", entityType: OFFER_ENTITY_TYPE }),
+    );
+  });
+
+  it("clears scores without calling the API when there is no entity type", async () => {
+    const { loadScores, scores } = useQualityScores(undefined);
+    await loadScores("prod-1");
 
     expect(client.dataSearch).not.toHaveBeenCalled();
     expect(scores.value).toEqual({});
@@ -119,7 +138,7 @@ describe("useProductQualityScores", () => {
       .mockResolvedValueOnce({ results: [{ targetId: "t1", readinessScore: 53 }], totalCount: 1 })
       .mockResolvedValueOnce({ results: [{ targetId: "t2", readinessScore: 70 }], totalCount: 1 });
 
-    const { loadScores, scores } = useProductQualityScores();
+    const { loadScores, scores } = useQualityScores(SELLER_PRODUCT_ENTITY_TYPE);
     await loadScores("prod-1");
     await loadScores("prod-1");
 

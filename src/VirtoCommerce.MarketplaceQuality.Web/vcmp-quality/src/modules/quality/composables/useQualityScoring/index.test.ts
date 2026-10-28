@@ -24,10 +24,12 @@ vi.mock("@vc-shell/framework/ai-agent", () => ({
 // ---------------------------------------------------------------------------
 // Dynamic import
 // ---------------------------------------------------------------------------
-const { useQualityScoring, QUALITY_EXPERT_AGENT_ID, QUALITY_SCORING_PROMPT } = await import("./index");
+const { useQualityScoring } = await import("./index");
 
 const args = {
-  product: { id: "prod-1", name: "Gift Box", objectType: "VirtoCommerce.MarketplaceVendorModule.Core.Domains.SellerProduct" },
+  agentId: "seller-product-quality-expert",
+  prompt: "Evaluate this product against all seller product quality targets.",
+  item: { id: "prod-1", name: "Gift Box", objectType: "VirtoCommerce.MarketplaceVendorModule.Core.Domains.SellerProduct" },
   blade: { id: "blade-1", name: "QualityEvaluation", title: "Quality evaluation" },
   locale: "de-DE",
 };
@@ -68,24 +70,22 @@ describe("useQualityScoring", () => {
     expect(init.headers).toEqual({ "Content-Type": "application/json", Authorization: "Bearer token-1" });
   });
 
-  it("asks for all seller product targets with the product as the details context", async () => {
+  it("sends the prompt to the given expert agent with the item as the details context", async () => {
     const { runScoring } = useQualityScoring();
     await runScoring(args);
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body).toMatchObject({
       type: "message",
-      agent_id: QUALITY_EXPERT_AGENT_ID,
-      message: QUALITY_SCORING_PROMPT,
+      agent_id: "seller-product-quality-expert",
+      message: "Evaluate this product against all seller product quality targets.",
       context: {
         context_type: "details",
         locale: "de-DE",
         blade: args.blade,
-        item: args.product,
+        item: args.item,
       },
     });
-    expect(body.agent_id).toBe("seller-product-quality-expert");
-    expect(body.message).toContain("all seller product quality targets");
     expect(body.thread_id).toEqual(expect.any(String));
   });
 
@@ -99,9 +99,9 @@ describe("useQualityScoring", () => {
     expect(threadIds[0]).not.toBe(threadIds[1]);
   });
 
-  it("sends an empty object type when the product has none", async () => {
+  it("sends an empty object type when the item has none", async () => {
     const { runScoring } = useQualityScoring();
-    await runScoring({ ...args, product: { id: "prod-1" } });
+    await runScoring({ ...args, item: { id: "prod-1" } });
 
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).context.item).toEqual({ id: "prod-1", objectType: "" });
   });
@@ -115,9 +115,10 @@ describe("useQualityScoring", () => {
     expect(scoring.value).toBe(false);
   });
 
-  it("does nothing without a product id", async () => {
+  it("does nothing without an item id or an agent", async () => {
     const { runScoring } = useQualityScoring();
-    await runScoring({ ...args, product: { id: "" } });
+    await runScoring({ ...args, item: { id: "" } });
+    await runScoring({ ...args, agentId: "" });
     await runScoring(undefined);
 
     expect(fetchMock).not.toHaveBeenCalled();

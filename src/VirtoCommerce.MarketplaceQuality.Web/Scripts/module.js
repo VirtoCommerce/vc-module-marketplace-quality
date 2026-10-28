@@ -36,7 +36,7 @@ angular.module(moduleName, [])
                 value: 'VirtoCommerce.MarketplaceVendorModule.Core.Domains.SellerProduct'
             });
 
-            // Seller product quality scoring entity type registration
+            // Seller offer quality scoring entity type registration
             qualityDataTypes.addType({
                 caption: 'quality-data-entity-types.seller-offer',
                 value: 'VirtoCommerce.MarketplaceVendorModule.Core.Domains.Offer'

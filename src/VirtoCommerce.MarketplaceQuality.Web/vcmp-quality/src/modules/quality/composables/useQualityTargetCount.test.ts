@@ -25,7 +25,7 @@ vi.mock("../../../api_client/virtocommerce.catalogquality", () => ({
 // Dynamic import
 // ---------------------------------------------------------------------------
 const { useQualityTargetCount } = await import("./useQualityTargetCount");
-const { QUALITY_PRODUCT_ENTITY_TYPE } = await import("./useQualityEvaluation");
+const { SELLER_PRODUCT_ENTITY_TYPE, OFFER_ENTITY_TYPE } = await import("../entities");
 
 describe("useQualityTargetCount", () => {
   beforeEach(() => {
@@ -35,16 +35,23 @@ describe("useQualityTargetCount", () => {
   });
 
   it("loads the count immediately when a product id is present", async () => {
-    const { count } = useQualityTargetCount(ref("prod-1"));
+    const { count } = useQualityTargetCount(ref("prod-1"), SELLER_PRODUCT_ENTITY_TYPE);
     await flushPromises();
 
     // take: 0 — only the total of the seller product targets is needed, not the targets themselves
-    expect(client.targetSearch).toHaveBeenCalledWith({ entityType: QUALITY_PRODUCT_ENTITY_TYPE, take: 0 });
+    expect(client.targetSearch).toHaveBeenCalledWith({ entityType: SELLER_PRODUCT_ENTITY_TYPE, take: 0 });
     expect(count.value).toBe(3);
   });
 
+  it("counts the targets of the given entity type", async () => {
+    useQualityTargetCount(ref("offer-1"), OFFER_ENTITY_TYPE);
+    await flushPromises();
+
+    expect(client.targetSearch).toHaveBeenCalledWith({ entityType: OFFER_ENTITY_TYPE, take: 0 });
+  });
+
   it("does not load while there is no product id", async () => {
-    const { count } = useQualityTargetCount(ref<string | undefined>(undefined));
+    const { count } = useQualityTargetCount(ref<string | undefined>(undefined), SELLER_PRODUCT_ENTITY_TYPE);
     await flushPromises();
 
     expect(client.targetSearch).not.toHaveBeenCalled();
@@ -53,7 +60,7 @@ describe("useQualityTargetCount", () => {
 
   it("loads once the product id arrives", async () => {
     const productId = ref<string | undefined>(undefined);
-    const { count } = useQualityTargetCount(productId);
+    const { count } = useQualityTargetCount(productId, SELLER_PRODUCT_ENTITY_TYPE);
 
     productId.value = "prod-1";
     await nextTick();
@@ -65,7 +72,7 @@ describe("useQualityTargetCount", () => {
 
   it("reloads when the blade is reused for a different product", async () => {
     const productId = ref<string | undefined>("prod-1");
-    useQualityTargetCount(productId);
+    useQualityTargetCount(productId, SELLER_PRODUCT_ENTITY_TYPE);
     await flushPromises();
 
     productId.value = "prod-2";
@@ -77,7 +84,7 @@ describe("useQualityTargetCount", () => {
 
   it("does not reload when the product id is cleared", async () => {
     const productId = ref<string | undefined>("prod-1");
-    useQualityTargetCount(productId);
+    useQualityTargetCount(productId, SELLER_PRODUCT_ENTITY_TYPE);
     await flushPromises();
 
     productId.value = undefined;
@@ -90,7 +97,7 @@ describe("useQualityTargetCount", () => {
   it("treats a missing total count as zero", async () => {
     client.targetSearch.mockResolvedValue({});
 
-    const { count } = useQualityTargetCount(ref("prod-1"));
+    const { count } = useQualityTargetCount(ref("prod-1"), SELLER_PRODUCT_ENTITY_TYPE);
     await flushPromises();
 
     expect(count.value).toBe(0);
@@ -99,7 +106,7 @@ describe("useQualityTargetCount", () => {
   it("shows zero instead of failing when the seller lacks permission", async () => {
     client.targetSearch.mockRejectedValue(new Error("403 Forbidden"));
 
-    const { count, loading } = useQualityTargetCount(ref("prod-1"));
+    const { count, loading } = useQualityTargetCount(ref("prod-1"), SELLER_PRODUCT_ENTITY_TYPE);
     await flushPromises();
 
     expect(count.value).toBe(0);
@@ -107,7 +114,7 @@ describe("useQualityTargetCount", () => {
   });
 
   it("refresh reloads the count", async () => {
-    const { count, refresh } = useQualityTargetCount(ref("prod-1"));
+    const { count, refresh } = useQualityTargetCount(ref("prod-1"), SELLER_PRODUCT_ENTITY_TYPE);
     await flushPromises();
 
     client.targetSearch.mockResolvedValue({ totalCount: 9 });

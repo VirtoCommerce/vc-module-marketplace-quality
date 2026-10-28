@@ -36,7 +36,7 @@ vi.mock("../../../../api_client/virtocommerce.catalogquality", () => ({
 // Dynamic import
 // ---------------------------------------------------------------------------
 const { useQualityTargets } = await import("./index");
-const { QUALITY_PRODUCT_ENTITY_TYPE } = await import("../useQualityEvaluation");
+const { SELLER_PRODUCT_ENTITY_TYPE, OFFER_ENTITY_TYPE } = await import("../../entities");
 
 describe("useQualityTargets", () => {
   beforeEach(() => {
@@ -47,16 +47,16 @@ describe("useQualityTargets", () => {
   });
 
   it("uses a page size of 20 by default and searches seller product targets only", () => {
-    const { searchQuery } = useQualityTargets();
+    const { searchQuery } = useQualityTargets({ entityType: SELLER_PRODUCT_ENTITY_TYPE });
 
-    expect(searchQuery.value).toEqual({ entityType: QUALITY_PRODUCT_ENTITY_TYPE, take: 20 });
+    expect(searchQuery.value).toEqual({ entityType: SELLER_PRODUCT_ENTITY_TYPE, take: 20 });
     expect(paginationOptions.pageSize).toBe(20);
   });
 
   it("honours a custom page size and passes the state key to pagination", () => {
-    const { searchQuery } = useQualityTargets({ pageSize: 5, stateKey: "my_key" });
+    const { searchQuery } = useQualityTargets({ entityType: SELLER_PRODUCT_ENTITY_TYPE, pageSize: 5, stateKey: "my_key" });
 
-    expect(searchQuery.value).toEqual({ entityType: QUALITY_PRODUCT_ENTITY_TYPE, take: 5 });
+    expect(searchQuery.value).toEqual({ entityType: SELLER_PRODUCT_ENTITY_TYPE, take: 5 });
     expect(paginationOptions.pageSize).toBe(5);
     expect(paginationOptions.stateKey).toBe("my_key");
   });
@@ -67,11 +67,11 @@ describe("useQualityTargets", () => {
       totalCount: 7,
     });
 
-    const { searchTargets, targets } = useQualityTargets();
+    const { searchTargets, targets } = useQualityTargets({ entityType: SELLER_PRODUCT_ENTITY_TYPE });
     await searchTargets({ sort: "name:ASC" });
 
     expect(client.targetSearch).toHaveBeenCalledWith({
-      entityType: QUALITY_PRODUCT_ENTITY_TYPE,
+      entityType: SELLER_PRODUCT_ENTITY_TYPE,
       take: 20,
       sort: "name:ASC",
     });
@@ -82,17 +82,34 @@ describe("useQualityTargets", () => {
   it("merges each query into the previous one", async () => {
     client.targetSearch.mockResolvedValue({ results: [], totalCount: 0 });
 
-    const { searchTargets, searchQuery } = useQualityTargets();
+    const { searchTargets, searchQuery } = useQualityTargets({ entityType: SELLER_PRODUCT_ENTITY_TYPE });
     await searchTargets({ sort: "name:ASC" });
     await searchTargets({ skip: 20 });
 
-    const expected = { entityType: QUALITY_PRODUCT_ENTITY_TYPE, take: 20, sort: "name:ASC", skip: 20 };
+    const expected = { entityType: SELLER_PRODUCT_ENTITY_TYPE, take: 20, sort: "name:ASC", skip: 20 };
     expect(searchQuery.value).toEqual(expected);
     expect(client.targetSearch).toHaveBeenLastCalledWith(expected);
   });
 
+  it("searches the targets of the given entity type", async () => {
+    client.targetSearch.mockResolvedValue({ results: [], totalCount: 0 });
+
+    const { searchTargets } = useQualityTargets({ entityType: OFFER_ENTITY_TYPE });
+    await searchTargets();
+
+    expect(client.targetSearch).toHaveBeenCalledWith({ entityType: OFFER_ENTITY_TYPE, take: 20 });
+  });
+
+  it("does not search without an entity type, so targets of other types never show", async () => {
+    const { searchTargets, targets } = useQualityTargets({ entityType: "" });
+    await searchTargets({ sort: "name:ASC" });
+
+    expect(client.targetSearch).not.toHaveBeenCalled();
+    expect(targets.value).toEqual([]);
+  });
+
   it("returns empty targets and zero total before the first search", () => {
-    const { targets } = useQualityTargets();
+    const { targets } = useQualityTargets({ entityType: SELLER_PRODUCT_ENTITY_TYPE });
 
     expect(targets.value).toEqual([]);
     expect(paginationOptions.totalCount.value).toBe(0);
@@ -101,7 +118,7 @@ describe("useQualityTargets", () => {
   it("treats a missing results array as empty", async () => {
     client.targetSearch.mockResolvedValue({ totalCount: 0 });
 
-    const { searchTargets, targets } = useQualityTargets();
+    const { searchTargets, targets } = useQualityTargets({ entityType: SELLER_PRODUCT_ENTITY_TYPE });
     await searchTargets();
 
     expect(targets.value).toEqual([]);
@@ -110,7 +127,7 @@ describe("useQualityTargets", () => {
   it("keeps the previous result when a newer search superseded the request", async () => {
     client.targetSearch.mockResolvedValueOnce({ results: [{ id: "t1" }], totalCount: 1 });
 
-    const { searchTargets, targets } = useQualityTargets();
+    const { searchTargets, targets } = useQualityTargets({ entityType: SELLER_PRODUCT_ENTITY_TYPE });
     await searchTargets();
 
     latestFn.mockResolvedValueOnce(undefined);
@@ -123,12 +140,12 @@ describe("useQualityTargets", () => {
   it("searches with the new skip when the page changes", async () => {
     client.targetSearch.mockResolvedValue({ results: [], totalCount: 0 });
 
-    const { searchTargets } = useQualityTargets();
+    const { searchTargets } = useQualityTargets({ entityType: SELLER_PRODUCT_ENTITY_TYPE });
     await searchTargets({ sort: "name:DESC" });
     await paginationOptions.onPageChange({ skip: 40 });
 
     expect(client.targetSearch).toHaveBeenLastCalledWith({
-      entityType: QUALITY_PRODUCT_ENTITY_TYPE,
+      entityType: SELLER_PRODUCT_ENTITY_TYPE,
       take: 20,
       sort: "name:DESC",
       skip: 40,
@@ -139,7 +156,7 @@ describe("useQualityTargets", () => {
     let resolve!: (value: unknown) => void;
     client.targetSearch.mockReturnValue(new Promise((r) => (resolve = r)));
 
-    const { searchTargets, loading } = useQualityTargets();
+    const { searchTargets, loading } = useQualityTargets({ entityType: SELLER_PRODUCT_ENTITY_TYPE });
     const pending = searchTargets();
     expect(loading.value).toBe(true);
 

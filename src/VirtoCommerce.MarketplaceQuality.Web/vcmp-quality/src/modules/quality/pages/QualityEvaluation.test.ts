@@ -4,6 +4,7 @@ import { flushPromises } from "@vue/test-utils";
 import { createMockBlade, mockHotkey } from "../../../test/harness/mockFramework";
 import { mountBlade } from "../../../test/harness/mountBlade";
 import type { QualityData } from "../../../api_client/virtocommerce.catalogquality";
+import { OFFER_ENTITY_TYPE, SELLER_PRODUCT_ENTITY_TYPE } from "../entities";
 
 // ---------------------------------------------------------------------------
 // Shared mock state -- reset before each test
@@ -15,6 +16,7 @@ let mockEvaluation: {
   isScored: ReturnType<typeof computed<boolean>>;
   loadEvaluation: ReturnType<typeof vi.fn>;
 };
+let evaluationEntityType: string | undefined;
 
 // ---------------------------------------------------------------------------
 // Module-level mocks (MUST be before dynamic import)
@@ -36,7 +38,7 @@ vi.mock("@vc-shell/framework/ui", () => ({
 }));
 
 vi.mock("../composables", () => ({
-  useQualityEvaluation: () => mockEvaluation,
+  useQualityEvaluation: (entityType?: string) => ((evaluationEntityType = entityType), mockEvaluation),
 }));
 
 const useAiAgentContext = vi.fn();
@@ -53,7 +55,7 @@ function initMocks(
   mockBlade = createMockBlade({
     param: ref<string | undefined>("param" in overrides ? overrides.param : "target-1"),
     options: ref(
-      overrides.options ?? { sellerProductId: "prod-1", productName: "Gift Box", targetName: "SEO" },
+      overrides.options ?? { entityType: SELLER_PRODUCT_ENTITY_TYPE, entityId: "prod-1", entityName: "Gift Box", targetName: "SEO" },
     ),
   });
 
@@ -75,15 +77,25 @@ describe("QualityEvaluation.vue", () => {
   // =========================================================================
   // Loading
   // =========================================================================
-  it("loads the evaluation for the seller product and the target on mount", async () => {
+  it("loads the evaluation for the entity and the target on mount", async () => {
     await mountBlade(QualityEvaluation);
     await flushPromises();
 
     expect(mockEvaluation.loadEvaluation).toHaveBeenCalledWith({ entityId: "prod-1", targetId: "target-1" });
   });
 
-  it("does not load without a seller product id", async () => {
-    initMocks({ options: { productName: "Gift Box" } });
+  it("loads the evaluation under the blade's entity type", async () => {
+    initMocks({ options: { entityType: OFFER_ENTITY_TYPE, entityId: "offer-1" } });
+
+    await mountBlade(QualityEvaluation);
+    await flushPromises();
+
+    expect(evaluationEntityType).toBe(OFFER_ENTITY_TYPE);
+    expect(mockEvaluation.loadEvaluation).toHaveBeenCalledWith({ entityId: "offer-1", targetId: "target-1" });
+  });
+
+  it("does not load without an entity id", async () => {
+    initMocks({ options: { entityName: "Gift Box" } });
 
     await mountBlade(QualityEvaluation);
     await flushPromises();
@@ -118,7 +130,7 @@ describe("QualityEvaluation.vue", () => {
   // =========================================================================
   it("gives the AI assistant the product together with the opened quality target", async () => {
     const product = { id: "prod-1", name: "Gift Box" };
-    initMocks({ options: { sellerProductId: "prod-1", targetName: "Catalog Translating", product } });
+    initMocks({ options: { entityType: SELLER_PRODUCT_ENTITY_TYPE, entityId: "prod-1", targetName: "Catalog Translating", item: product } });
     await mountBlade(QualityEvaluation);
 
     expect(useAiAgentContext).toHaveBeenCalledTimes(1);
@@ -130,14 +142,14 @@ describe("QualityEvaluation.vue", () => {
 
   it("does not change the product object it was given", async () => {
     const product = { id: "prod-1", name: "Gift Box" };
-    initMocks({ options: { targetName: "Catalog Translating", product } });
+    initMocks({ options: { targetName: "Catalog Translating", item: product } });
     await mountBlade(QualityEvaluation);
 
     expect(product).not.toHaveProperty("qualityTarget");
   });
 
   it("gives the AI assistant no item when the blade was opened without a product", async () => {
-    initMocks({ options: { sellerProductId: "prod-1", targetName: "SEO" } });
+    initMocks({ options: { entityType: SELLER_PRODUCT_ENTITY_TYPE, entityId: "prod-1", targetName: "SEO" } });
     await mountBlade(QualityEvaluation);
 
     expect(useAiAgentContext.mock.calls[0][0].dataRef.value).toBeUndefined();
@@ -146,14 +158,14 @@ describe("QualityEvaluation.vue", () => {
   // =========================================================================
   // Subtitle
   // =========================================================================
-  it("joins product and target names in the subtitle", async () => {
+  it("joins entity and target names in the subtitle", async () => {
     const wrapper = await mountBlade(QualityEvaluation);
 
     expect(wrapper.findComponent({ name: "VcBlade" }).props("subtitle")).toBe("Gift Box — SEO");
   });
 
   it("omits missing names from the subtitle", async () => {
-    initMocks({ options: { sellerProductId: "prod-1", targetName: "SEO" } });
+    initMocks({ options: { entityType: SELLER_PRODUCT_ENTITY_TYPE, entityId: "prod-1", targetName: "SEO" } });
     const wrapper = await mountBlade(QualityEvaluation);
 
     expect(wrapper.findComponent({ name: "VcBlade" }).props("subtitle")).toBe("SEO");
@@ -165,15 +177,15 @@ describe("QualityEvaluation.vue", () => {
   it("shows the not-scored message when there is no evaluation", async () => {
     const wrapper = await mountBlade(QualityEvaluation);
 
-    expect(wrapper.find(".product-quality-evaluation__empty").exists()).toBe(true);
-    expect(wrapper.find(".product-quality-evaluation").exists()).toBe(false);
+    expect(wrapper.find(".quality-evaluation__empty").exists()).toBe(true);
+    expect(wrapper.find(".quality-evaluation").exists()).toBe(false);
   });
 
   it("hides the not-scored message while loading", async () => {
     mockEvaluation.loading.value = true;
     const wrapper = await mountBlade(QualityEvaluation);
 
-    expect(wrapper.find(".product-quality-evaluation__empty").exists()).toBe(false);
+    expect(wrapper.find(".quality-evaluation__empty").exists()).toBe(false);
   });
 
   // =========================================================================
@@ -182,10 +194,10 @@ describe("QualityEvaluation.vue", () => {
   it("has no separate score header — the report carries the score", async () => {
     initMocks({ evaluation: { id: "qd-1", readinessScore: 53, suggestions: "**Quality score: 53 / 100**" } });
     const wrapper = await mountBlade(QualityEvaluation);
-    const content = wrapper.find(".product-quality-evaluation");
+    const content = wrapper.find(".quality-evaluation");
 
-    expect(content.find(".product-quality-evaluation__score").exists()).toBe(false);
-    expect(content.element.firstElementChild?.classList).toContain("product-quality-evaluation__report");
+    expect(content.find(".quality-evaluation__score").exists()).toBe(false);
+    expect(content.element.firstElementChild?.classList).toContain("quality-evaluation__report");
     expect(content.text()).toContain("Quality score: 53 / 100");
   });
 
@@ -197,7 +209,7 @@ describe("QualityEvaluation.vue", () => {
       evaluation: { id: "qd-1", suggestions: "## Findings\n\n- Add **alt text**\n\n| A | B |\n|---|---|\n| 1 | 2 |" },
     });
     const wrapper = await mountBlade(QualityEvaluation);
-    const report = wrapper.find(".product-quality-evaluation__report");
+    const report = wrapper.find(".quality-evaluation__report");
 
     expect(report.find("h2").text()).toBe("Findings");
     expect(report.find("li strong").text()).toBe("alt text");
@@ -207,7 +219,7 @@ describe("QualityEvaluation.vue", () => {
   it("escapes raw HTML in the agent's report instead of rendering it", async () => {
     initMocks({ evaluation: { id: "qd-1", suggestions: '<img src=x onerror="alert(1)"><script>alert(2)</script>' } });
     const wrapper = await mountBlade(QualityEvaluation);
-    const report = wrapper.find(".product-quality-evaluation__report");
+    const report = wrapper.find(".quality-evaluation__report");
 
     expect(report.find("img").exists()).toBe(false);
     expect(report.find("script").exists()).toBe(false);
@@ -218,7 +230,7 @@ describe("QualityEvaluation.vue", () => {
     initMocks({ evaluation: { id: "qd-1", suggestions: "See https://example.com/guide" } });
     const wrapper = await mountBlade(QualityEvaluation);
 
-    expect(wrapper.find(".product-quality-evaluation__report a").attributes("href")).toBe("https://example.com/guide");
+    expect(wrapper.find(".quality-evaluation__report a").attributes("href")).toBe("https://example.com/guide");
   });
 
   // =========================================================================
@@ -228,13 +240,13 @@ describe("QualityEvaluation.vue", () => {
     initMocks({ evaluation: { id: "qd-1", createdDate: new Date("2026-10-01T10:00:00Z") } });
     const wrapper = await mountBlade(QualityEvaluation);
 
-    expect(wrapper.find(".product-quality-evaluation__meta").exists()).toBe(true);
+    expect(wrapper.find(".quality-evaluation__meta").exists()).toBe(true);
   });
 
   it("hides the evaluated date when the evaluation has no dates", async () => {
     initMocks({ evaluation: { id: "qd-1", readinessScore: 90 } });
     const wrapper = await mountBlade(QualityEvaluation);
 
-    expect(wrapper.find(".product-quality-evaluation__meta").exists()).toBe(false);
+    expect(wrapper.find(".quality-evaluation__meta").exists()).toBe(false);
   });
 });

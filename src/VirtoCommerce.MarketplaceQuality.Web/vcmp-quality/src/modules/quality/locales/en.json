@@ -26,7 +26,7 @@
         "REFRESH": "Refresh"
       },
       "EVALUATED": "Evaluated {date}",
-      "NOT_SCORED": "This product has not been scored for this target yet."
+      "NOT_SCORED": "This item has not been scored for this target yet."
     }
   }
 }

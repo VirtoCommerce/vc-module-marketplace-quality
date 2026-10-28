@@ -13,23 +13,32 @@ import { computed } from "vue";
 import { injectBladeContext, useBlade } from "@vc-shell/framework";
 import { VcWidget } from "@vc-shell/framework/ui";
 import { useQualityTargetCount } from "../composables";
-import type { QualityProduct } from "../types";
+import type { QualityBladeOptions, QualityItem } from "../types";
+
+const props = defineProps<{
+  /** Quality entity type of the host blade's item. */
+  entityType: string;
+}>();
 
 const { openBlade } = useBlade();
 const bladeContext = injectBladeContext();
-// Host ProductDetails blade exposes its SellerProduct via defineBladeContext({ item }).
-const product = computed(() => bladeContext.value?.item as QualityProduct | undefined);
+// Host details blades (ProductDetails, Offer) expose their entity via defineBladeContext({ item }).
+const item = computed(() => bladeContext.value?.item as QualityItem | undefined);
 
-const { count, loading } = useQualityTargetCount(computed(() => product.value?.id));
+const { count, loading } = useQualityTargetCount(
+  computed(() => item.value?.id),
+  props.entityType,
+);
 
 function onClick() {
   openBlade({
     name: "QualityTargets",
     options: {
-      sellerProductId: product.value?.id,
-      productName: product.value?.name,
-      product: product.value,
-    },
+      entityType: props.entityType,
+      entityId: item.value?.id,
+      entityName: item.value?.name,
+      item: item.value,
+    } satisfies QualityBladeOptions,
   });
 }
 </script>

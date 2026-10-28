@@ -25,7 +25,13 @@ vi.mock("./components", () => ({
 // ---------------------------------------------------------------------------
 const module = (await import("./index")).default;
 const { default: entry } = await import("../index");
-const widget = registerExternalWidget.mock.calls[0][0];
+const { SELLER_PRODUCT_ENTITY_TYPE, OFFER_ENTITY_TYPE } = await import("./entities");
+const widgets = registerExternalWidget.mock.calls.map(([widget]) => widget);
+
+/** Renders a registered wrapper and returns the QualityWidget vnode it produces. */
+function renderWrapper(widget: { component: { setup: () => () => { type: unknown; props: unknown } } }) {
+  return widget.component.setup()();
+}
 
 describe("quality app module", () => {
   it("is the plugin's exposed entry", () => {
@@ -39,20 +45,29 @@ describe("quality app module", () => {
     expect(options.locales.en).toBeDefined();
   });
 
-  it("adds the Quality widget to the host's ProductDetails blade", () => {
-    expect(registerExternalWidget).toHaveBeenCalledTimes(1);
-    expect(widget).toMatchObject({
-      id: "QualityWidget",
-      targetBlades: ["ProductDetails"],
-      title: "QUALITY.WIDGET.TITLE",
-      component: { name: "QualityWidget" },
-    });
+  it("registers one Quality widget per quality entity type", () => {
+    expect(widgets.map((w) => w.id)).toEqual(["QualityWidget", "OfferQualityWidget"]);
+    widgets.forEach((w) => expect(w.title).toBe("QUALITY.WIDGET.TITLE"));
   });
 
-  it("shows the widget only for an opened (saved) product", () => {
-    expect(widget.isVisible({ param: "prod-1" })).toBe(true);
-    expect(widget.isVisible({ param: undefined })).toBe(false);
-    expect(widget.isVisible(undefined)).toBe(false);
+  it.each([
+    ["QualityWidget", "ProductDetails", SELLER_PRODUCT_ENTITY_TYPE],
+    ["OfferQualityWidget", "Offer", OFFER_ENTITY_TYPE],
+  ])("adds %s to the host's %s blade, bound to its entity type", (id, hostBlade, entityType) => {
+    const widget = widgets.find((w) => w.id === id);
+
+    expect(widget.targetBlades).toEqual([hostBlade]);
+    const vnode = renderWrapper(widget);
+    expect(vnode.type).toEqual({ name: "QualityWidget" });
+    expect(vnode.props).toEqual({ entityType });
+  });
+
+  it("shows the widgets only for an opened (saved) entity", () => {
+    for (const widget of widgets) {
+      expect(widget.isVisible({ param: "id-1" })).toBe(true);
+      expect(widget.isVisible({ param: undefined })).toBe(false);
+      expect(widget.isVisible(undefined)).toBe(false);
+    }
   });
 });
 

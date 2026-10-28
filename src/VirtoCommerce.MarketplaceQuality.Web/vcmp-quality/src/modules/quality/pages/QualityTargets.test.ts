@@ -3,6 +3,7 @@ import { ref, computed, nextTick } from "vue";
 import { flushPromises } from "@vue/test-utils";
 import { createMockBlade, mockHotkey } from "../../../test/harness/mockFramework";
 import { mountBlade } from "../../../test/harness/mountBlade";
+import { OFFER_ENTITY_TYPE, SELLER_PRODUCT_ENTITY_TYPE } from "../entities";
 
 // ---------------------------------------------------------------------------
 // Shared mock state -- reset before each test
@@ -21,6 +22,8 @@ let mockScores: {
   loading: ReturnType<typeof ref<boolean>>;
   loadScores: ReturnType<typeof vi.fn>;
 };
+let targetsOptions: Record<string, unknown> | undefined;
+let scoresEntityType: string | undefined;
 let mockScoring: {
   scoring: ReturnType<typeof ref<boolean>>;
   canScore: ReturnType<typeof ref<boolean>>;
@@ -72,8 +75,8 @@ vi.mock("@vc-shell/framework/ui", () => ({
 }));
 
 vi.mock("../composables", () => ({
-  useQualityTargets: () => mockTargets,
-  useProductQualityScores: () => mockScores,
+  useQualityTargets: (options: Record<string, unknown>) => ((targetsOptions = options), mockTargets),
+  useQualityScores: (entityType: string) => ((scoresEntityType = entityType), mockScores),
   useQualityScoring: () => mockScoring,
 }));
 
@@ -88,7 +91,7 @@ const product = { id: "prod-1", name: "Gift Box", objectType: "SellerProduct" };
 const QualityTargets = (await import("./QualityTargets.vue")).default;
 
 function initMocks(
-  options: Record<string, unknown> = { sellerProductId: "prod-1", productName: "Gift Box", product },
+  options: Record<string, unknown> = { entityType: SELLER_PRODUCT_ENTITY_TYPE, entityId: "prod-1", entityName: "Gift Box", item: product },
 ) {
   mockBlade = createMockBlade({ options: ref(options) });
   mockSort = createSort();
@@ -210,9 +213,10 @@ describe("QualityTargets.vue", () => {
       name: "QualityEvaluation",
       param: "t2",
       options: {
-        sellerProductId: "prod-1",
-        productName: "Gift Box",
-        product,
+        entityType: SELLER_PRODUCT_ENTITY_TYPE,
+        entityId: "prod-1",
+        entityName: "Gift Box",
+        item: product,
         targetName: "Catalog Translating",
       },
     });
@@ -234,7 +238,9 @@ describe("QualityTargets.vue", () => {
       mockScoring.runScoring.mock.invocationCallOrder[0],
     );
     expect(mockScoring.runScoring).toHaveBeenCalledWith({
-      product: { id: "prod-1", name: "Gift Box", objectType: "SellerProduct" },
+      agentId: "seller-product-quality-expert",
+      prompt: "Evaluate this product against all seller product quality targets.",
+      item: { id: "prod-1", name: "Gift Box", objectType: "SellerProduct" },
       blade: { id: "test-blade-id", name: "QualityTargets", title: "QUALITY.TARGETS.TITLE" },
       locale: expect.any(String),
     });
@@ -242,13 +248,13 @@ describe("QualityTargets.vue", () => {
     expect(mockScores.loadScores).toHaveBeenCalledWith("prod-1");
   });
 
-  it("run scoring falls back to the product name option without a product", async () => {
-    initMocks({ sellerProductId: "prod-1", productName: "Gift Box" });
+  it("run scoring falls back to the entity name option without an item", async () => {
+    initMocks({ entityType: SELLER_PRODUCT_ENTITY_TYPE, entityId: "prod-1", entityName: "Gift Box" });
     const wrapper = await mountBlade(QualityTargets);
 
     await toolbarItem(wrapper, "runScoring").clickHandler();
 
-    expect(mockScoring.runScoring.mock.calls[0][0].product).toEqual({
+    expect(mockScoring.runScoring.mock.calls[0][0].item).toEqual({
       id: "prod-1",
       name: "Gift Box",
       objectType: undefined,
@@ -266,8 +272,8 @@ describe("QualityTargets.vue", () => {
     expect(mockScores.loadScores).toHaveBeenCalledWith("prod-1");
   });
 
-  it("does not run scoring without a seller product id", async () => {
-    initMocks({ productName: "Gift Box", product });
+  it("does not run scoring without an entity id", async () => {
+    initMocks({ entityType: SELLER_PRODUCT_ENTITY_TYPE, entityName: "Gift Box", item: product });
     const wrapper = await mountBlade(QualityTargets);
 
     expect(toolbarItem(wrapper, "runScoring").disabled).toBe(true);
@@ -292,6 +298,64 @@ describe("QualityTargets.vue", () => {
     expect(toolbarItem(wrapper, "runScoring").isVisible).toBe(false);
   });
 
+  it("run scoring calls the offer quality expert for an offer", async () => {
+    initMocks({ entityType: OFFER_ENTITY_TYPE, entityId: "offer-1", entityName: "Gift Box offer" });
+    const wrapper = await mountBlade(QualityTargets);
+
+    expect(toolbarItem(wrapper, "runScoring").isVisible).toBe(true);
+    await toolbarItem(wrapper, "runScoring").clickHandler();
+
+    expect(mockScoring.runScoring).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: "offer-quality-expert",
+        prompt: "Evaluate this offer against all offer quality targets.",
+        item: { id: "offer-1", name: "Gift Box offer", objectType: undefined },
+      }),
+    );
+  });
+
+  it("hides run scoring for an entity type without a quality expert agent", async () => {
+    initMocks({ entityType: "Unknown.EntityType", entityId: "x-1" });
+    const wrapper = await mountBlade(QualityTargets);
+    const runScoring = toolbarItem(wrapper, "runScoring");
+
+    expect(runScoring.isVisible).toBe(false);
+    await runScoring.clickHandler();
+    expect(mockScoring.runScoring).not.toHaveBeenCalled();
+  });
+
+  // =========================================================================
+  // Entity type
+  // =========================================================================
+  it("loads the targets and scores of the blade's entity type, with its table state key", async () => {
+    const wrapper = await mountBlade(QualityTargets);
+
+    expect(targetsOptions).toEqual({ entityType: SELLER_PRODUCT_ENTITY_TYPE, stateKey: "product_quality_targets" });
+    expect(scoresEntityType).toBe(SELLER_PRODUCT_ENTITY_TYPE);
+    expect(wrapper.findComponent({ name: "VcDataTable" }).props("stateKey")).toBe("product_quality_targets");
+  });
+
+  it("keeps an offer's table state apart from a product's", async () => {
+    initMocks({ entityType: OFFER_ENTITY_TYPE, entityId: "offer-1" });
+    const wrapper = await mountBlade(QualityTargets);
+
+    expect(targetsOptions).toEqual({ entityType: OFFER_ENTITY_TYPE, stateKey: "offer_quality_targets" });
+    expect(scoresEntityType).toBe(OFFER_ENTITY_TYPE);
+    expect(wrapper.findComponent({ name: "VcDataTable" }).props("stateKey")).toBe("offer_quality_targets");
+  });
+
+  it("passes the entity type on to the evaluation blade", async () => {
+    initMocks({ entityType: OFFER_ENTITY_TYPE, entityId: "offer-1" });
+    const wrapper = await mountBlade(QualityTargets);
+
+    wrapper.findComponent({ name: "VcDataTable" }).vm.$emit("row-click", { data: { id: "t1", name: "SEO" } });
+
+    expect(mockBlade.openBlade.mock.calls[0][0].options).toMatchObject({
+      entityType: OFFER_ENTITY_TYPE,
+      entityId: "offer-1",
+    });
+  });
+
   // =========================================================================
   // AI assistant context
   // =========================================================================
@@ -303,7 +367,7 @@ describe("QualityTargets.vue", () => {
   });
 
   it("gives the AI assistant no item when the blade was opened without a product", async () => {
-    initMocks({ sellerProductId: "prod-1" });
+    initMocks({ entityType: SELLER_PRODUCT_ENTITY_TYPE, entityId: "prod-1" });
     await mountBlade(QualityTargets);
 
     expect(useAiAgentContext.mock.calls[0][0].dataRef.value).toBeUndefined();

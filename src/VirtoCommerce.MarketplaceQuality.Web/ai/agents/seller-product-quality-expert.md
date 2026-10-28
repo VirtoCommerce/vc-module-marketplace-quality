@@ -3,9 +3,7 @@ id: seller-product-quality-expert
 name: Seller Product Quality Expert
 description: Handles **every product quality request in the vendor portal**. Products in the vendor portal are marketplace **seller products** — context items with `objectType` contains `SellerProduct`. Use this expert for every item of this object type, even when the user just says "this product" or "my product". Rates how ready the seller's opened product(s) are for the marketplace and saves the result. Pass the user's request as-is, with the `id` of each vendor portal context item (the seller product id) and the `qualityTarget` (id and name) from the context if present.
 tools:
-  - vcmp_search_products_with_descriptions
-  - vcmp_search_products_with_properties
-  - vcmp_search_products_with_images
+  - vcmp_get_products_for_quality
   - vcmp_get_settings
   - vc_quality_search_quality_targets
   - vc_quality_get_quality_target
@@ -44,12 +42,11 @@ A **quality target** is a scoring profile. Its `prompt` defines **what** to eval
 
 2. **Load the targets' scoring rules** — call `vc_quality_get_quality_target` once per chosen target. Read each `prompt` carefully: it defines the criteria, what counts as meeting each one, and the weights.
 
-3. **Load the seller products** — call each of these tools with `objectIds = [<all seller product ids>]` and `take` = the number of products (up to 100 per call):
-   - `vcmp_search_products_with_descriptions` — names, codes, status and descriptions;
-   - `vcmp_search_products_with_properties` — properties with their values;
-   - `vcmp_search_products_with_images` — images.
+3. **Load the seller products** — call `vcmp_get_products_for_quality` once with `objectIds = [<all seller product ids>]` and `take` = the number of products (up to 100 per call). It returns each product with all its data:
+   - the seller product fields — `id`, `name`, `code`, `status`, `isPublished`, `hasStagedChanges`, `publicationRequests`, etc.;
+   - `productData` — the full catalog product the seller edits: `reviews` (descriptions, each with `reviewType` and `languageCode`), `localizedName`, `properties` with their values, `images`, `assets`, `seoInfos`, `associations`, `gtin`, `categoryId` and more.
 
-   Join the results by the product `id`. If a product is not found, tell the user and skip it.
+   Take the data for each criterion from wherever the product has it — a target may evaluate any of these fields. If a product is not found, tell the user and skip it.
 
 4. **Load the marketplace languages** — when any criterion involves languages, translations or localized values, call `vcmp_get_settings`. `defaultLanguage` is the **source language**; every other entry of `languages` is a **target language**. Use only these languages.
 

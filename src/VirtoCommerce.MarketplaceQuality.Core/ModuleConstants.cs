@@ -48,5 +48,6 @@ public static class ModuleConstants
     public static class QualityEntityType
     {
         public const string SellerProduct = "VirtoCommerce.MarketplaceVendorModule.Core.Domains.SellerProduct";
+        public const string Offer = "VirtoCommerce.MarketplaceVendorModule.Core.Domains.Offer";
     }
 }

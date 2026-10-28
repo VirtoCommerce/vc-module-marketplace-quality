@@ -1,8 +1,8 @@
 <template>
   <VcBlade
-    data-test-id="product-quality-targets-blade"
+    data-test-id="quality-targets-blade"
     :title="$t('QUALITY.TARGETS.TITLE')"
-    :subtitle="options?.productName"
+    :subtitle="options?.entityName"
     width="50%"
     :toolbar-items="bladeToolbar"
   >
@@ -10,13 +10,13 @@
       v-model:sort-field="sortField"
       v-model:sort-order="sortOrder"
       :active-item-id="activeChildParam"
-      data-test-id="product-quality-targets-table"
+      data-test-id="quality-targets-table"
       class="tw-grow tw-basis-0"
       :loading="loading || scoresLoading || scoring"
       :items="targets"
       :total-count="pagination.totalCount"
       :pagination="pagination"
-      state-key="product_quality_targets"
+      :state-key="stateKey"
       :pull-to-refresh="true"
       :empty-state="{
         icon: 'lucide-gauge',
@@ -51,9 +51,10 @@ import { computed, onMounted, ref, watch, type Ref } from "vue";
 import { IBladeToolbar, useBlade, useDataTableSort, hotkey } from "@vc-shell/framework";
 import { useAiAgentContext } from "@vc-shell/framework/ai-agent";
 import { useI18n } from "vue-i18n";
-import { useQualityTargets, useProductQualityScores, useQualityScoring } from "../composables";
+import { useQualityTargets, useQualityScores, useQualityScoring } from "../composables";
+import { getQualityEntity } from "../entities";
 import type { QualityTarget } from "../../../api_client/virtocommerce.catalogquality";
-import type { QualityProduct } from "../types";
+import type { QualityBladeOptions, QualityItem } from "../types";
 
 import { VcBlade, VcColumn, VcDataTable } from "@vc-shell/framework/ui";
 
@@ -61,27 +62,25 @@ defineBlade({
   name: "QualityTargets",
 });
 
-const { id: bladeId, openBlade, closeChildren, options, activeChildParam } = useBlade<{
-  /** Seller product the evaluations are stored under. */
-  sellerProductId?: string;
-  productName?: string;
-  product?: QualityProduct;
-}>();
+const { id: bladeId, openBlade, closeChildren, options, activeChildParam } = useBlade<QualityBladeOptions>();
 const { t, locale } = useI18n({ useScope: "global" });
 
-// Same item the host ProductDetails blade sends, so the AI assistant knows which product this is about.
-useAiAgentContext({ dataRef: computed(() => options.value?.product) as Ref<QualityProduct> });
+// The blade is opened for one entity, so its type is fixed for the blade's lifetime.
+const entityType = options.value?.entityType ?? "";
+const entity = getQualityEntity(entityType);
+const stateKey = entity?.stateKey ?? "quality_targets";
 
-const { searchQuery, loading, pagination, targets, searchTargets } = useQualityTargets({
-  stateKey: "product_quality_targets",
-});
+// Same item the host details blade sends, so the AI assistant knows which entity this is about.
+useAiAgentContext({ dataRef: computed(() => options.value?.item) as Ref<QualityItem> });
 
-const { scores, loading: scoresLoading, loadScores } = useProductQualityScores();
+const { searchQuery, loading, pagination, targets, searchTargets } = useQualityTargets({ entityType, stateKey });
+
+const { scores, loading: scoresLoading, loadScores } = useQualityScores(entityType);
 
 const { scoring, canScore, runScoring } = useQualityScoring();
 
 const { sortField, sortOrder, sortExpression } = useDataTableSort({
-  stateKey: "product_quality_targets",
+  stateKey,
   initialField: "name",
   initialDirection: "ASC",
 });
@@ -91,8 +90,9 @@ const bladeToolbar = ref<IBladeToolbar[]>([
     id: "runScoring",
     title: computed(() => t("QUALITY.TARGETS.TOOLBAR.RUN_SCORING")),
     icon: "lucide-sparkles",
-    isVisible: canScore,
-    disabled: computed(() => scoring.value || !options.value?.sellerProductId),
+    // Hidden for an entity type without a quality expert agent yet.
+    isVisible: computed(() => canScore.value && !!entity?.agentId),
+    disabled: computed(() => scoring.value || !options.value?.entityId),
     async clickHandler() {
       await score();
     },
@@ -129,21 +129,23 @@ async function reload() {
       skip: pagination.skip,
       sort: sortExpression.value,
     }),
-    loadScores(options.value?.sellerProductId),
+    loadScores(options.value?.entityId),
   ]);
 }
 
 async function score() {
-  const sellerProductId = options.value?.sellerProductId;
-  if (!sellerProductId) return;
+  const entityId = options.value?.entityId;
+  if (!entityId || !entity?.agentId) return;
 
   await closeChildren();
   try {
     await runScoring({
-      product: {
-        id: sellerProductId,
-        name: options.value?.product?.name ?? options.value?.productName,
-        objectType: options.value?.product?.objectType,
+      agentId: entity.agentId,
+      prompt: entity.scoringPrompt ?? "",
+      item: {
+        id: entityId,
+        name: options.value?.item?.name ?? options.value?.entityName,
+        objectType: options.value?.item?.objectType,
       },
       blade: { id: bladeId.value, name: "QualityTargets", title: t("QUALITY.TARGETS.TITLE") },
       locale: locale.value,
@@ -160,9 +162,10 @@ function onItemClick(event: { data: QualityTarget }) {
     name: "QualityEvaluation",
     param: event.data.id,
     options: {
-      sellerProductId: options.value?.sellerProductId,
-      productName: options.value?.productName,
-      product: options.value?.product,
+      entityType,
+      entityId: options.value?.entityId,
+      entityName: options.value?.entityName,
+      item: options.value?.item,
       targetName: event.data.name,
     },
   });

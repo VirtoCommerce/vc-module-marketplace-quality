@@ -2,12 +2,11 @@ import { computed, type ComputedRef } from "vue";
 import { useAsync, useUser } from "@vc-shell/framework";
 import { useAiAgent } from "@vc-shell/framework/ai-agent";
 
-export const QUALITY_EXPERT_AGENT_ID = "seller-product-quality-expert";
-
-export const QUALITY_SCORING_PROMPT = "Evaluate this product against all seller product quality targets.";
-
 export interface IRunScoringArgs {
-  product: { id: string; name?: string; objectType?: string };
+  /** Quality expert agent of the entity type, and the message it is sent. */
+  agentId: string;
+  prompt: string;
+  item: { id: string; name?: string; objectType?: string };
   blade: { id: string; name: string; title: string };
   locale: string;
 }
@@ -28,7 +27,7 @@ export function useQualityScoring(): IUseQualityScoring {
   });
 
   const { action: runScoring, loading } = useAsync<IRunScoringArgs>(async (args) => {
-    if (!args?.product.id) return;
+    if (!args?.item.id || !args.agentId) return;
     if (!chatUrl.value) throw new Error("AI agent URL is not configured");
 
     const response = await fetch(chatUrl.value, {
@@ -39,14 +38,14 @@ export function useQualityScoring(): IUseQualityScoring {
       },
       body: JSON.stringify({
         type: "message",
-        agent_id: QUALITY_EXPERT_AGENT_ID,
-        message: QUALITY_SCORING_PROMPT,
+        agent_id: args.agentId,
+        message: args.prompt,
         thread_id: crypto.randomUUID(),
         context: {
           context_type: "details",
           locale: args.locale,
           blade: args.blade,
-          item: { id: args.product.id, objectType: args.product.objectType ?? "", name: args.product.name },
+          item: { id: args.item.id, objectType: args.item.objectType ?? "", name: args.item.name },
         },
       }),
     });

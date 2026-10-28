@@ -2,8 +2,6 @@ import { CatalogQualityClient, type QualityData } from "../../../../api_client/v
 import { computed, type ComputedRef, type Ref, ref } from "vue";
 import { useApiClient, useAsync } from "@vc-shell/framework";
 
-export const QUALITY_PRODUCT_ENTITY_TYPE = "VirtoCommerce.MarketplaceVendorModule.Core.Domains.SellerProduct";
-
 export interface IQualityEvaluationArgs {
   entityId: string;
   targetId: string;
@@ -16,16 +14,15 @@ export interface IUseQualityEvaluation {
   loadEvaluation: (args?: IQualityEvaluationArgs) => Promise<void>;
 }
 
-export function useQualityEvaluation(): IUseQualityEvaluation {
+export function useQualityEvaluation(entityType?: string): IUseQualityEvaluation {
   const { getApiClient } = useApiClient(CatalogQualityClient);
 
   const evaluation = ref<QualityData | null>(null);
 
   const { action: loadEvaluation, loading } = useAsync<IQualityEvaluationArgs>(async (args) => {
-    if (!args?.entityId || !args.targetId) return;
+    if (!entityType || !args?.entityId || !args.targetId) return;
     const client = await getApiClient();
-    evaluation.value =
-      (await client.dataGetByEntity(args.entityId, QUALITY_PRODUCT_ENTITY_TYPE, args.targetId)) ?? null;
+    evaluation.value = (await client.dataGetByEntity(args.entityId, entityType, args.targetId)) ?? null;
   });
 
   return {

@@ -1,7 +1,7 @@
 <template>
   <VcBlade
     v-loading="loading"
-    data-test-id="product-quality-evaluation-blade"
+    data-test-id="quality-evaluation-blade"
     :title="$t('QUALITY.EVALUATION.TITLE')"
     :subtitle="subtitle"
     width="50%"
@@ -10,18 +10,18 @@
     <VcContainer class="tw-p-4">
       <div
         v-if="isScored"
-        class="product-quality-evaluation"
+        class="quality-evaluation"
       >
         <!-- markdown-it runs with html disabled, so the agent's text cannot inject markup -->
         <!-- eslint-disable-next-line vue/no-v-html -->
         <div
-          class="product-quality-evaluation__report"
+          class="quality-evaluation__report"
           v-html="reportHtml"
         />
 
         <div
           v-if="evaluatedDate"
-          class="product-quality-evaluation__meta"
+          class="quality-evaluation__meta"
         >
           {{ $t("QUALITY.EVALUATION.EVALUATED", { date: evaluatedDate }) }}
         </div>
@@ -29,7 +29,7 @@
 
       <div
         v-else-if="!loading"
-        class="product-quality-evaluation__empty"
+        class="quality-evaluation__empty"
       >
         <VcIcon
           icon="lucide-gauge"
@@ -48,7 +48,7 @@ import { useAiAgentContext } from "@vc-shell/framework/ai-agent";
 import { useI18n } from "vue-i18n";
 import MarkdownIt from "markdown-it";
 import { useQualityEvaluation } from "../composables";
-import type { QualityProduct } from "../types";
+import type { QualityBladeOptions, QualityItem } from "../types";
 
 import { VcBlade, VcContainer, VcIcon, vLoading } from "@vc-shell/framework/ui";
 
@@ -56,28 +56,23 @@ defineBlade({
   name: "QualityEvaluation",
 });
 
-const { param, options } = useBlade<{
-  sellerProductId?: string;
-  productName?: string;
-  product?: QualityProduct;
-  targetName?: string;
-}>();
+const { param, options } = useBlade<QualityBladeOptions & { targetName?: string }>();
 const { t, locale } = useI18n({ useScope: "global" });
 
-// Same item the host ProductDetails blade sends, plus the quality target this blade shows, so the
-// AI assistant evaluates the product against this target rather than picking one on its own.
+// Same item the host details blade sends, plus the quality target this blade shows, so the
+// AI assistant evaluates the entity against this target rather than picking one on its own.
 const aiContextItem = computed(() => {
-  const product = options.value?.product;
-  if (!product) return undefined;
-  return { ...product, qualityTarget: { id: param.value, name: options.value?.targetName } };
+  const item = options.value?.item;
+  if (!item) return undefined;
+  return { ...item, qualityTarget: { id: param.value, name: options.value?.targetName } };
 });
-useAiAgentContext({ dataRef: aiContextItem as Ref<QualityProduct> });
+useAiAgentContext({ dataRef: aiContextItem as Ref<QualityItem> });
 
-const { loading, evaluation, isScored, loadEvaluation } = useQualityEvaluation();
+const { loading, evaluation, isScored, loadEvaluation } = useQualityEvaluation(options.value?.entityType);
 
 const markdown = new MarkdownIt({ html: false, linkify: true });
 
-const subtitle = computed(() => [options.value?.productName, options.value?.targetName].filter(Boolean).join(" — "));
+const subtitle = computed(() => [options.value?.entityName, options.value?.targetName].filter(Boolean).join(" — "));
 
 const reportHtml = computed(() => markdown.render(evaluation.value?.suggestions ?? ""));
 
@@ -99,8 +94,8 @@ const bladeToolbar = ref<IBladeToolbar[]>([
 ]);
 
 async function reload() {
-  if (!options.value?.sellerProductId || !param.value) return;
-  await loadEvaluation({ entityId: options.value.sellerProductId, targetId: param.value });
+  if (!options.value?.entityId || !param.value) return;
+  await loadEvaluation({ entityId: options.value.entityId, targetId: param.value });
 }
 
 onMounted(async () => {
@@ -109,7 +104,7 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
-.product-quality-evaluation {
+.quality-evaluation {
   @apply tw-flex tw-flex-col tw-gap-4;
 
   &__meta {

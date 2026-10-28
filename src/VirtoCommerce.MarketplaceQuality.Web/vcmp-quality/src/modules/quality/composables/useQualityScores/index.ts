@@ -1,27 +1,26 @@
 import { CatalogQualityClient } from "../../../../api_client/virtocommerce.catalogquality";
 import { computed, type ComputedRef, type Ref, ref } from "vue";
 import { useApiClient, useAsync } from "@vc-shell/framework";
-import { QUALITY_PRODUCT_ENTITY_TYPE } from "../useQualityEvaluation";
 
 const PAGE_SIZE = 100;
 
-export interface IUseProductQualityScores {
+export interface IUseQualityScores {
   loading: ComputedRef<boolean>;
-  /** Readiness score by target id. A target without an entry has not been scored for this product. */
+  /** Readiness score by target id. A target without an entry has not been scored for this entity. */
   scores: Ref<Record<string, number>>;
-  /** Loads the scores of every target for a seller product. */
+  /** Loads the scores of every target for an entity. */
   loadScores: (entityId?: string) => Promise<void>;
 }
 
-// One search by entity returns the product's evaluations across all targets, so the targets list
+// One search by entity returns the entity's evaluations across all targets, so the targets list
 // can show every score without a request per row.
-export function useProductQualityScores(): IUseProductQualityScores {
+export function useQualityScores(entityType?: string): IUseQualityScores {
   const { getApiClient } = useApiClient(CatalogQualityClient);
 
   const scores = ref<Record<string, number>>({});
 
   const { action: loadScores, loading } = useAsync<string>(async (entityId) => {
-    if (!entityId) {
+    if (!entityType || !entityId) {
       scores.value = {};
       return;
     }
@@ -30,11 +29,11 @@ export function useProductQualityScores(): IUseProductQualityScores {
     const result: Record<string, number> = {};
     let skip = 0;
 
-    // A product has at most one evaluation per target, so this is normally a single page.
+    // An entity has at most one evaluation per target, so this is normally a single page.
     for (;;) {
       const page = await client.dataSearch({
         entityId,
-        entityType: QUALITY_PRODUCT_ENTITY_TYPE,
+        entityType,
         skip,
         take: PAGE_SIZE,
       });
