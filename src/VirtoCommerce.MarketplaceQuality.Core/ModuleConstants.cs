@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using VirtoCommerce.Platform.Core.Settings;
+
 namespace VirtoCommerce.MarketplaceQuality.Core;
 
 public static class ModuleConstants
@@ -23,27 +26,35 @@ public static class ModuleConstants
         //}
     }
 
-    //public static class Settings
-    //{
-    //    public static class General
-    //    {
-    //        public static IEnumerable<SettingDescriptor> AllGeneralSettings
-    //        {
-    //            get
-    //            {
-    //                yield return MarketplaceQualityTargets;
-    //            }
-    //        }
-    //    }
+    public static class Settings
+    {
+        public static class General
+        {
+            public static readonly SettingDescriptor ScoringBatchSize = new()
+            {
+                Name = "MarketplaceQuality.ScoringBatchSize",
+                GroupName = "Marketplace|Quality",
+                ValueType = SettingValueType.Integer,
+                DefaultValue = 5,
+            };
 
-    //    public static IEnumerable<SettingDescriptor> AllSettings
-    //    {
-    //        get
-    //        {
-    //            return General.AllGeneralSettings;
-    //        }
-    //    }
-    //}
+            public static IEnumerable<SettingDescriptor> AllGeneralSettings
+            {
+                get
+                {
+                    yield return ScoringBatchSize;
+                }
+            }
+        }
+
+        public static IEnumerable<SettingDescriptor> AllSettings
+        {
+            get
+            {
+                return General.AllGeneralSettings;
+            }
+        }
+    }
 
     public static class QualityEntityType
     {

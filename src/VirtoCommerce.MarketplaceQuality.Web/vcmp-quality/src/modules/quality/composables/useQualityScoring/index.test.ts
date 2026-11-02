@@ -1,57 +1,61 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ref } from "vue";
-import { mockUseAsync } from "../../../../test/harness/mockFramework";
+import { effectScope } from "vue";
 
 // ---------------------------------------------------------------------------
 // Shared mock state
 // ---------------------------------------------------------------------------
 const getAccessToken = vi.fn();
-let aiAgent: { config: ReturnType<typeof ref<{ url: string }>> } | undefined;
 const fetchMock = vi.fn();
+const notification = { error: vi.fn() };
+let subscription: {
+  types: string[];
+  filter: (msg: Record<string, unknown>) => boolean;
+  handler: (msg: Record<string, unknown>) => void;
+};
+const subscribe = vi.fn((options: typeof subscription) => {
+  subscription = options;
+  return vi.fn();
+});
 
 // ---------------------------------------------------------------------------
 // Module-level mocks
 // ---------------------------------------------------------------------------
 vi.mock("@vc-shell/framework", () => ({
-  useAsync: mockUseAsync,
+  notification,
   useUser: () => ({ getAccessToken }),
-}));
-
-vi.mock("@vc-shell/framework/ai-agent", () => ({
-  useAiAgent: () => aiAgent,
+  useNotificationStore: () => ({ subscribe }),
 }));
 
 // ---------------------------------------------------------------------------
 // Dynamic import
 // ---------------------------------------------------------------------------
-const { useQualityScoring } = await import("./index");
+const { useQualityScoring, startQualityScoring, resetQualityScoring } = await import("./index");
 
-const args = {
-  agentId: "seller-product-quality-expert",
-  prompt: "Evaluate this product against all seller product quality targets.",
-  item: { id: "prod-1", name: "Gift Box", objectType: "VirtoCommerce.MarketplaceVendorModule.Core.Domains.SellerProduct" },
-  blade: { id: "blade-1", name: "QualityEvaluation", title: "Quality evaluation" },
-  locale: "de-DE",
-};
+const PRODUCT = "VirtoCommerce.MarketplaceVendorModule.Core.Domains.SellerProduct";
+const OFFER = "VirtoCommerce.MarketplaceVendorModule.Core.Domains.Offer";
+const args = { entityType: PRODUCT, entityIds: ["prod-1", "prod-2"], locale: "de-DE" };
 
-/** A streamed NDJSON response; each chunk is delivered as a separate read. */
-function streamResponse(chunks: string[], init: ResponseInit = { status: 200 }) {
-  const encoder = new TextEncoder();
-  const body = new ReadableStream<Uint8Array>({
-    start(controller) {
-      chunks.forEach((chunk) => controller.enqueue(encoder.encode(chunk)));
-      controller.close();
-    },
+function accepted(runId = "run-1", entityIds = args.entityIds) {
+  return new Response(JSON.stringify({ id: runId, runId, entityIds, title: "Quality scoring: 0 of 2 items…" }), {
+    status: 202,
   });
-  return new Response(body, init);
+}
+
+function final(runId = "run-1", entityIds = args.entityIds) {
+  return { id: `final-${runId}`, runId, entityType: PRODUCT, entityIds, finished: "2026-11-02T10:00:00Z" };
+}
+
+/** Delivers a push notification the way the framework does: through the filter, then to the handler. */
+function push(message: Record<string, unknown>) {
+  if (subscription.filter(message)) subscription.handler(message);
 }
 
 describe("useQualityScoring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    aiAgent = { config: ref({ url: "https://virtooz.example.com/chat/" }) };
+    resetQualityScoring();
     getAccessToken.mockResolvedValue("token-1");
-    fetchMock.mockResolvedValue(streamResponse(['{"type":"token","content":"Done"}\n']));
+    fetchMock.mockResolvedValue(accepted());
     vi.stubGlobal("fetch", fetchMock);
   });
 
@@ -59,120 +63,154 @@ describe("useQualityScoring", () => {
     vi.unstubAllGlobals();
   });
 
-  it("calls the quality expert directly on the Virtooz origin", async () => {
-    const { runScoring } = useQualityScoring();
-    await runScoring(args);
+  it("starts the run on the platform with the user token", async () => {
+    await startQualityScoring(args);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("https://virtooz.example.com/api/chat");
+    expect(url).toBe("/api/vcmp/quality/scoring");
     expect(init.method).toBe("POST");
     expect(init.headers).toEqual({ "Content-Type": "application/json", Authorization: "Bearer token-1" });
+    expect(JSON.parse(init.body)).toEqual(args);
   });
 
-  it("sends the prompt to the given expert agent with the item as the details context", async () => {
-    const { runScoring } = useQualityScoring();
-    await runScoring(args);
+  it("does nothing without entities", async () => {
+    await startQualityScoring({ ...args, entityIds: [] });
+    await startQualityScoring({ ...args, entityType: "" });
 
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body).toMatchObject({
-      type: "message",
-      agent_id: "seller-product-quality-expert",
-      message: "Evaluate this product against all seller product quality targets.",
-      context: {
-        context_type: "details",
-        locale: "de-DE",
-        blade: args.blade,
-        item: args.item,
-      },
-    });
-    expect(body.thread_id).toEqual(expect.any(String));
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("starts a new thread on every run", async () => {
-    const { runScoring } = useQualityScoring();
-    await runScoring(args);
-    fetchMock.mockResolvedValue(streamResponse([]));
-    await runScoring(args);
+  it("listens to the final notifications of the quality scoring runs once", () => {
+    useQualityScoring();
+    useQualityScoring();
 
-    const threadIds = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).thread_id);
-    expect(threadIds[0]).not.toBe(threadIds[1]);
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(subscription.types).toEqual(["QualityScoringPushNotification"]);
   });
 
-  it("sends an empty object type when the item has none", async () => {
-    const { runScoring } = useQualityScoring();
-    await runScoring({ ...args, item: { id: "prod-1" } });
+  // =========================================================================
+  // Shared state
+  // =========================================================================
+  it("is scoring for every user of the store from the start until the run's final notification", async () => {
+    const blade = useQualityScoring();
+    const list = useQualityScoring();
 
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body).context.item).toEqual({ id: "prod-1", objectType: "" });
+    const run = startQualityScoring(args);
+    expect(blade.scoring.value).toBe(true);
+    await run;
+    expect(list.scoring.value).toBe(true);
+
+    // Progress notifications do not finish the run
+    push({ id: "run-1", runId: "run-1", processedCount: 1 });
+    expect(blade.scoring.value).toBe(true);
+
+    push(final());
+    expect(blade.scoring.value).toBe(false);
+    expect(list.scoring.value).toBe(false);
   });
 
-  it("is scoring until the whole stream is read", async () => {
-    const { runScoring, scoring } = useQualityScoring();
-    const run = runScoring(args);
+  it("does not start another run while one is going", async () => {
+    await startQualityScoring(args);
+    await startQualityScoring({ ...args, entityType: OFFER, entityIds: ["offer-1"] });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("knows which entities are being scored", async () => {
+    const { isEntityScoring } = useQualityScoring();
+    await startQualityScoring(args);
+
+    expect(isEntityScoring(PRODUCT, "prod-2")).toBe(true);
+    expect(isEntityScoring(PRODUCT, "prod-3")).toBe(false);
+    expect(isEntityScoring(OFFER, "prod-2")).toBe(false);
+    expect(isEntityScoring(PRODUCT, undefined)).toBe(false);
+  });
+
+  it("takes the entities the platform queued: those already being scored are left out", async () => {
+    fetchMock.mockResolvedValue(accepted("run-1", ["prod-2"]));
+    const { isEntityScoring } = useQualityScoring();
+
+    await startQualityScoring(args);
+
+    expect(isEntityScoring(PRODUCT, "prod-1")).toBe(false);
+    expect(isEntityScoring(PRODUCT, "prod-2")).toBe(true);
+  });
+
+  // =========================================================================
+  // Finished
+  // =========================================================================
+  it("tells every listener when a run is over", async () => {
+    const onBlade = vi.fn();
+    const onOther = vi.fn();
+    useQualityScoring({ onFinished: onBlade });
+    useQualityScoring({ onFinished: onOther });
+    await startQualityScoring(args);
+
+    const message = final();
+    push(message);
+
+    expect(onBlade).toHaveBeenCalledWith(message);
+    expect(onOther).toHaveBeenCalledWith(message);
+  });
+
+  it("stops telling a listener whose scope is disposed", async () => {
+    const onFinished = vi.fn();
+    const scope = effectScope();
+    scope.run(() => useQualityScoring({ onFinished }));
+    scope.stop();
+    await startQualityScoring(args);
+
+    push(final());
+
+    expect(onFinished).not.toHaveBeenCalled();
+  });
+
+  it("ignores the final notifications of runs not started here", async () => {
+    const onFinished = vi.fn();
+    const { scoring } = useQualityScoring({ onFinished });
+    await startQualityScoring(args);
+
+    push(final("other-run"));
 
     expect(scoring.value).toBe(true);
-    await run;
+    expect(onFinished).not.toHaveBeenCalled();
+  });
+
+  it("finishes a run whose final notification came before the start request returned", async () => {
+    const onFinished = vi.fn();
+    const { scoring } = useQualityScoring({ onFinished });
+    const message = final();
+    fetchMock.mockImplementation(async () => {
+      push(message);
+      return accepted();
+    });
+
+    await startQualityScoring(args);
+
     expect(scoring.value).toBe(false);
+    expect(onFinished).toHaveBeenCalledWith(message);
   });
 
-  it("does nothing without an item id or an agent", async () => {
-    const { runScoring } = useQualityScoring();
-    await runScoring({ ...args, item: { id: "" } });
-    await runScoring({ ...args, agentId: "" });
-    await runScoring(undefined);
+  it("does not finish a later run with a final notification that came while idle", async () => {
+    const { scoring } = useQualityScoring();
 
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
+    push(final());
+    await startQualityScoring(args);
 
-  // =========================================================================
-  // Availability
-  // =========================================================================
-  it.each([
-    ["no AI agent service", () => (aiAgent = undefined)],
-    ["no AI agent URL", () => (aiAgent = { config: ref({ url: "" }) })],
-  ])("cannot score with %s", async (_label, arrange) => {
-    arrange();
-    const { canScore, runScoring } = useQualityScoring();
-
-    expect(canScore.value).toBe(false);
-    await expect(runScoring(args)).rejects.toThrow("AI agent URL is not configured");
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("can score when the AI agent URL is configured", () => {
-    expect(useQualityScoring().canScore.value).toBe(true);
+    expect(scoring.value).toBe(true);
   });
 
   // =========================================================================
   // Errors
   // =========================================================================
-  it("fails with the status and body of a rejected request", async () => {
-    fetchMock.mockResolvedValue(new Response("Agent 'seller-product-quality-expert' not found", { status: 404 }));
+  it("shows why a run could not be started, and is not scoring then", async () => {
+    fetchMock.mockResolvedValue(new Response("Quality scoring of these items is already running", { status: 409 }));
+    const { scoring } = useQualityScoring();
 
-    const { runScoring } = useQualityScoring();
-    await expect(runScoring(args)).rejects.toThrow("404: Agent 'seller-product-quality-expert' not found");
-  });
+    await expect(startQualityScoring(args)).resolves.toBeUndefined();
 
-  it("fails with the message of an error event", async () => {
-    fetchMock.mockResolvedValue(
-      streamResponse(['{"type":"token","content":"Evaluating"}\n{"type":"error","message":"Tool failed"}\n']),
-    );
-
-    const { runScoring } = useQualityScoring();
-    await expect(runScoring(args)).rejects.toThrow("Tool failed");
-  });
-
-  it("reads events split across chunks and a last line without a newline", async () => {
-    fetchMock.mockResolvedValue(streamResponse(['{"type":"token","con', 'tent":"x"}\n{"type":"err', 'or","message":"Late"}']));
-
-    const { runScoring } = useQualityScoring();
-    await expect(runScoring(args)).rejects.toThrow("Late");
-  });
-
-  it("succeeds when the stream has no error events", async () => {
-    fetchMock.mockResolvedValue(streamResponse(['{"type":"token","content":"a"}\n', "\n", '{"type":"done"}\n']));
-
-    const { runScoring } = useQualityScoring();
-    await expect(runScoring(args)).resolves.toBeUndefined();
+    expect(notification.error).toHaveBeenCalledWith("409: Quality scoring of these items is already running");
+    expect(scoring.value).toBe(false);
   });
 });

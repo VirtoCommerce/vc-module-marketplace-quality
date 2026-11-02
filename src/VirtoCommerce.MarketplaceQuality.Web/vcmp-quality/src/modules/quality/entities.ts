@@ -9,30 +9,34 @@ export interface QualityEntityConfig {
   entityType: string;
   /** Host vendor-portal details blade the widget is added to; it exposes the entity via defineBladeContext({ item }). */
   hostBlade: string;
+  /** Host vendor-portal list blade the bulk "Run scoring" button is added to; it exposes the checked rows via defineBladeContext({ selectedItems }). */
+  listBlade?: string;
   widgetId: string;
   /** Keeps table sort and paging of the targets blade separate per entity type. */
   stateKey: string;
-  /** AI expert that scores the entity. Without one, targets and stored evaluations are shown, but scoring is not offered. */
-  agentId?: string;
-  scoringPrompt?: string;
+  /**
+   * The platform has an AI expert that scores the entity (see ModuleConstants.QualityScoring.Agents).
+   * Without one, targets and stored evaluations are shown, but scoring is not offered.
+   */
+  scorable?: boolean;
 }
 
 export const QUALITY_ENTITIES: QualityEntityConfig[] = [
   {
     entityType: SELLER_PRODUCT_ENTITY_TYPE,
     hostBlade: "ProductDetails",
+    listBlade: "Products",
     widgetId: "QualityWidget",
     stateKey: "product_quality_targets",
-    agentId: "seller-product-quality-expert",
-    scoringPrompt: "Evaluate this product against all seller product quality targets.",
+    scorable: true,
   },
   {
     entityType: OFFER_ENTITY_TYPE,
     hostBlade: "Offer",
+    listBlade: "Offers",
     widgetId: "OfferQualityWidget",
     stateKey: "offer_quality_targets",
-    agentId: "offer-quality-expert",
-    scoringPrompt: "Evaluate this offer against all offer quality targets.",
+    scorable: true,
   },
 ];
 

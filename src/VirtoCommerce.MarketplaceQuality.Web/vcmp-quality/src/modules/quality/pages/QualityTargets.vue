@@ -12,7 +12,7 @@
       :active-item-id="activeChildParam"
       data-test-id="quality-targets-table"
       class="tw-grow tw-basis-0"
-      :loading="loading || scoresLoading || scoring"
+      :loading="loading || scoresLoading || entityScoring"
       :items="targets"
       :total-count="pagination.totalCount"
       :pagination="pagination"
@@ -62,7 +62,7 @@ defineBlade({
   name: "QualityTargets",
 });
 
-const { id: bladeId, openBlade, closeChildren, options, activeChildParam } = useBlade<QualityBladeOptions>();
+const { openBlade, closeChildren, options, activeChildParam } = useBlade<QualityBladeOptions>();
 const { t, locale } = useI18n({ useScope: "global" });
 
 // The blade is opened for one entity, so its type is fixed for the blade's lifetime.
@@ -77,7 +77,17 @@ const { searchQuery, loading, pagination, targets, searchTargets } = useQualityT
 
 const { scores, loading: scoresLoading, loadScores } = useQualityScores(entityType);
 
-const { scoring, canScore, runScoring } = useQualityScoring();
+// The expert saves the evaluations itself, so the scores are reloaded when a run of this entity is over,
+// wherever it was started.
+const { scoring, isEntityScoring, runScoring } = useQualityScoring({
+  onFinished: (message) => {
+    const entityId = options.value?.entityId;
+    if (message.entityType === entityType && !!entityId && message.entityIds?.includes(entityId)) {
+      reload();
+    }
+  },
+});
+const entityScoring = computed(() => isEntityScoring(entityType, options.value?.entityId));
 
 const { sortField, sortOrder, sortExpression } = useDataTableSort({
   stateKey,
@@ -91,7 +101,8 @@ const bladeToolbar = ref<IBladeToolbar[]>([
     title: computed(() => t("QUALITY.TARGETS.TOOLBAR.RUN_SCORING")),
     icon: "lucide-sparkles",
     // Hidden for an entity type without a quality expert agent yet.
-    isVisible: computed(() => canScore.value && !!entity?.agentId),
+    isVisible: !!entity?.scorable,
+    // Same rule as every "Run scoring" button: disabled while a run started in this browser is going
     disabled: computed(() => scoring.value || !options.value?.entityId),
     async clickHandler() {
       await score();
@@ -135,26 +146,10 @@ async function reload() {
 
 async function score() {
   const entityId = options.value?.entityId;
-  if (!entityId || !entity?.agentId) return;
+  if (!entityId || !entity?.scorable) return;
 
   await closeChildren();
-  try {
-    await runScoring({
-      agentId: entity.agentId,
-      prompt: entity.scoringPrompt ?? "",
-      item: {
-        id: entityId,
-        name: options.value?.item?.name ?? options.value?.entityName,
-        objectType: options.value?.item?.objectType,
-      },
-      blade: { id: bladeId.value, name: "QualityTargets", title: t("QUALITY.TARGETS.TITLE") },
-      locale: locale.value,
-    });
-  } catch {
-    // useAsync has already shown the error notification
-  } finally {
-    await reload();
-  }
+  await runScoring({ entityType, entityIds: [entityId], locale: locale.value });
 }
 
 function onItemClick(event: { data: QualityTarget }) {

@@ -2742,9 +2742,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vc-shell/api-client-generator@npm:2.6.3-rc.0":
-  version: 2.6.3-rc.0
-  resolution: "@vc-shell/api-client-generator@npm:2.6.3-rc.0"
+"@vc-shell/api-client-generator@npm:2.10.2":
+  version: 2.10.2
+  resolution: "@vc-shell/api-client-generator@npm:2.10.2"
   dependencies:
     chalk: "npm:^2.4.2"
     cross-spawn: "npm:^7.0.3"
@@ -2754,13 +2754,13 @@ __metadata:
     vite-plugin-dts: "npm:^3.6.4"
   bin:
     api-client-generator: dist/api-client-generator.js
-  checksum: 10/58fcfd9f4e96018b11afb1b37996238ca6cbaa6237eab0406709e389124a7602af8412e97141f742a74794c3dee0cee1f86df46d844d82942100076ea44658fc
+  checksum: 10/1b89f4d87988fc59818db5dd719fe2a4f520cf6b831f6b0003a5d5abb114e5a559b66962c30fc5d55a8001a1e45a82d0a35d15f20608724cac70398941255f3c
   languageName: node
   linkType: hard
 
-"@vc-shell/config-generator@npm:2.6.3-rc.0":
-  version: 2.6.3-rc.0
-  resolution: "@vc-shell/config-generator@npm:2.6.3-rc.0"
+"@vc-shell/config-generator@npm:2.10.2":
+  version: 2.10.2
+  resolution: "@vc-shell/config-generator@npm:2.10.2"
   dependencies:
     "@babel/parser": "npm:^7.27.0"
     "@vitejs/plugin-vue": "npm:^5.2.3"
@@ -2770,13 +2770,13 @@ __metadata:
     vite-plugin-circular-dependency: "npm:^0.5.0"
     vite-plugin-mkcert: "npm:^1.17.1"
     vue: "npm:^3.5.30"
-  checksum: 10/1bf50f3cfd5f940b3686d1c15816c2b7e8e9b4deb964915f58e22c185ace5969ddf92dd2559cf89835081f58c27280b6a4d2bd3ed95b27dde2346c18ca7fd3f4
+  checksum: 10/f21633f03457764f355ac15f6a909ef833473b6377210a7238a293406796233411711ac995360b495f32b30f146a8f2e86a21fdc2583b2a37661ca384a682b4b
   languageName: node
   linkType: hard
 
-"@vc-shell/framework@npm:2.6.3-rc.0":
-  version: 2.6.3-rc.0
-  resolution: "@vc-shell/framework@npm:2.6.3-rc.0"
+"@vc-shell/framework@npm:2.10.2":
+  version: 2.10.2
+  resolution: "@vc-shell/framework@npm:2.10.2"
   dependencies:
     "@floating-ui/dom": "npm:^1.7.4"
     "@floating-ui/vue": "npm:^1.0.6"
@@ -2843,35 +2843,35 @@ __metadata:
       optional: false
   bin:
     vc-check-locales: dist/scripts/check-locales.cjs
-  checksum: 10/ec0c8d0eef50b8548e5fa41cb717bd7a922dcc46baceca159f203a697b54e12d7716b218313a92106833dc7c8343effe2b4a6cda85cb58b98b770bc2b1225b9b
+  checksum: 10/8710a1e9a9a6f8e3c9fe208828d1058f3ec35463d76b91d4670fb49593cb2ecbf34fac48c8c4159374a31f884cac383eae118ae3777c302fd61433d974d3d575
   languageName: node
   linkType: hard
 
-"@vc-shell/mf-config@npm:2.6.3-rc.0":
-  version: 2.6.3-rc.0
-  resolution: "@vc-shell/mf-config@npm:2.6.3-rc.0"
-  checksum: 10/9cdf8d00510124ef6c24d5237bffeb391e20aa66ae3b3f62d45f99ac5bfbe1cb9d7407cffb32c0f0a4ea0b2b525b00f67b7e5f09ad1fb5864e3366740348016f
+"@vc-shell/mf-config@npm:2.10.2":
+  version: 2.10.2
+  resolution: "@vc-shell/mf-config@npm:2.10.2"
+  checksum: 10/67551717b9adc7b7275a76f7e509d97b75c911956bda5461637d69ee6ca89485498b161eafcc9c121163e5c5dd291e5869e006e82918e1213096fbcd7134df3b
   languageName: node
   linkType: hard
 
-"@vc-shell/mf-module@npm:2.6.3-rc.0":
-  version: 2.6.3-rc.0
-  resolution: "@vc-shell/mf-module@npm:2.6.3-rc.0"
+"@vc-shell/mf-module@npm:2.10.2":
+  version: 2.10.2
+  resolution: "@vc-shell/mf-module@npm:2.10.2"
   dependencies:
     "@module-federation/vite": "npm:^1.12.2"
-    "@vc-shell/mf-config": "npm:2.6.3-rc.0"
+    "@vc-shell/mf-config": "npm:2.10.2"
   peerDependencies:
-    "@vc-shell/config-generator": ^2.6.3-rc.0
+    "@vc-shell/config-generator": ^2.10.2
     "@vitejs/plugin-vue": ^5.0.0
     vite: ^5.0.0 || ^6.0.0
-  checksum: 10/261b1c0f4e862f077c7ff2ac8a7a7532bf5bd97f4fb60d9426a7067d464e250da2e973da65ab8411e023066e67d1c18de284813920560fc9b87e3abafcdf3e3d
+  checksum: 10/9f541ca711acc964efbae758d55d5aa63d38743a5a5ad1e5a520086dc7bb3fbcd287894e4c4efb5ebdeea169200828666ca6c387636bdf670af081b2a5dc32f4
   languageName: node
   linkType: hard
 
-"@vc-shell/ts-config@npm:2.6.3-rc.0":
-  version: 2.6.3-rc.0
-  resolution: "@vc-shell/ts-config@npm:2.6.3-rc.0"
-  checksum: 10/73d12fd20a63676992baefece85b3d5a6f9cc9d7bca18f1d59031d01f78e70c14a688812cd2aecfec6db710747dcb1ef6c79ae9ea40768428392e1df6379d0c8
+"@vc-shell/ts-config@npm:2.10.2":
+  version: 2.10.2
+  resolution: "@vc-shell/ts-config@npm:2.10.2"
+  checksum: 10/558f575c09d80d94c490051fad3aee92f4f270de7ba54916f0f2cd3cdee0c52045a897d24d2209f4fc6f11671cc396fec16cc050579b1f89b692018612cfdb3e
   languageName: node
   linkType: hard
 
@@ -7721,11 +7721,11 @@ __metadata:
   dependencies:
     "@types/markdown-it": "npm:^14.1.2"
     "@types/node": "npm:^20.10.5"
-    "@vc-shell/api-client-generator": "npm:2.6.3-rc.0"
-    "@vc-shell/config-generator": "npm:2.6.3-rc.0"
-    "@vc-shell/framework": "npm:2.6.3-rc.0"
-    "@vc-shell/mf-module": "npm:2.6.3-rc.0"
-    "@vc-shell/ts-config": "npm:2.6.3-rc.0"
+    "@vc-shell/api-client-generator": "npm:2.10.2"
+    "@vc-shell/config-generator": "npm:2.10.2"
+    "@vc-shell/framework": "npm:2.10.2"
+    "@vc-shell/mf-module": "npm:2.10.2"
+    "@vc-shell/ts-config": "npm:2.10.2"
     "@vitejs/plugin-vue": "npm:^5.2.3"
     "@vitest/coverage-v8": "npm:^4.1.5"
     "@vue/test-utils": "npm:^2.4.8"

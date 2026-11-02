@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.MarketplaceQuality.Core;
 using VirtoCommerce.MarketplaceQuality.Core.Services;
 using VirtoCommerce.MarketplaceQuality.Data;
 using VirtoCommerce.MarketplaceQuality.Data.MySql;
@@ -9,6 +10,7 @@ using VirtoCommerce.MarketplaceQuality.Data.PostgreSql;
 using VirtoCommerce.MarketplaceQuality.Data.Repositories;
 using VirtoCommerce.MarketplaceQuality.Data.Services;
 using VirtoCommerce.MarketplaceQuality.Data.SqlServer;
+using VirtoCommerce.MarketplaceQuality.Data.VirtoOz;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.Platform.Data.MySql.Extensions;
@@ -45,6 +47,10 @@ public class Module : IModule, IHasConfiguration
 
         serviceCollection.AddTransient<IMarketplaceQualityService, MarketplaceQualityService>();
 
+        serviceCollection.AddSingleton<IQualityScoringQueue, QualityScoringQueue>();
+        serviceCollection.AddHostedService<QualityScoringWorker>();
+        serviceCollection.AddHttpClient<IVirtoOzChatClient, VirtoOzChatClient>(client => client.Timeout = VirtoOzChatClient.RequestTimeout);
+
         serviceCollection.AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<Anchor>());
     }
 
@@ -53,8 +59,8 @@ public class Module : IModule, IHasConfiguration
         var serviceProvider = appBuilder.ApplicationServices;
 
         // Register settings
-        //var settingsRegistrar = serviceProvider.GetRequiredService<ISettingsRegistrar>();
-        //settingsRegistrar.RegisterSettings(ModuleConstants.Settings.AllSettings, ModuleInfo.Id);
+        var settingsRegistrar = serviceProvider.GetRequiredService<ISettingsRegistrar>();
+        settingsRegistrar.RegisterSettings(ModuleConstants.Settings.AllSettings, ModuleInfo.Id);
 
         // Register permissions
         //var permissionsRegistrar = serviceProvider.GetRequiredService<IPermissionsRegistrar>();

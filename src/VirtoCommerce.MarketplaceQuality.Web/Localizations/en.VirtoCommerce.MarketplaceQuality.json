@@ -15,9 +15,9 @@
   },
   "settings": {
     "MarketplaceQuality": {
-      "Enabled": {
-        "title": "MarketplaceQuality Enabled",
-        "description": "MarketplaceQuality Enabled setting"
+      "ScoringBatchSize": {
+        "title": "Quality scoring batch size",
+        "description": "How many products or offers are sent to the AI quality expert in one call. Lower it if scoring runs time out."
       }
     }
   },

@@ -26,9 +26,10 @@ let targetsOptions: Record<string, unknown> | undefined;
 let scoresEntityType: string | undefined;
 let mockScoring: {
   scoring: ReturnType<typeof ref<boolean>>;
-  canScore: ReturnType<typeof ref<boolean>>;
+  isEntityScoring: ReturnType<typeof vi.fn>;
   runScoring: ReturnType<typeof vi.fn>;
 };
+let scoringOptions: { onFinished?: (message: { entityType?: string; entityIds?: string[] }) => void } | undefined;
 
 function createSort() {
   const sortField = ref("name");
@@ -77,7 +78,7 @@ vi.mock("@vc-shell/framework/ui", () => ({
 vi.mock("../composables", () => ({
   useQualityTargets: (options: Record<string, unknown>) => ((targetsOptions = options), mockTargets),
   useQualityScores: (entityType: string) => ((scoresEntityType = entityType), mockScores),
-  useQualityScoring: () => mockScoring,
+  useQualityScoring: (options: typeof scoringOptions) => ((scoringOptions = options), mockScoring),
 }));
 
 const useAiAgentContext = vi.fn();
@@ -112,7 +113,7 @@ function initMocks(
   };
   mockScoring = {
     scoring: ref(false),
-    canScore: ref(true),
+    isEntityScoring: vi.fn().mockReturnValue(false),
     runScoring: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -154,12 +155,25 @@ describe("QualityTargets.vue", () => {
   it.each([
     ["targets", () => (mockTargets.loading.value = true)],
     ["scores", () => (mockScores.loading.value = true)],
-    ["the expert is scoring", () => (mockScoring.scoring.value = true)],
+    ["the product is being scored", () => mockScoring.isEntityScoring.mockReturnValue(true)],
   ])("shows the table as loading while %s load", async (_label, setLoading) => {
     setLoading();
     const wrapper = await mountBlade(QualityTargets);
 
     expect(wrapper.findComponent({ name: "VcDataTable" }).props("loading")).toBe(true);
+  });
+
+  it("asks whether this product is being scored", async () => {
+    await mountBlade(QualityTargets);
+
+    expect(mockScoring.isEntityScoring).toHaveBeenCalledWith(SELLER_PRODUCT_ENTITY_TYPE, "prod-1");
+  });
+
+  it("does not show the table as loading while other items are being scored", async () => {
+    mockScoring.scoring.value = true;
+    const wrapper = await mountBlade(QualityTargets);
+
+    expect(wrapper.findComponent({ name: "VcDataTable" }).props("loading")).toBe(false);
   });
 
   // =========================================================================
@@ -225,11 +239,8 @@ describe("QualityTargets.vue", () => {
   // =========================================================================
   // Run scoring
   // =========================================================================
-  it("run scoring closes the opened evaluation, calls the expert for the product, then reloads", async () => {
+  it("run scoring closes the opened evaluation, then starts scoring the product", async () => {
     const wrapper = await mountBlade(QualityTargets);
-    await flushPromises();
-    mockTargets.searchTargets.mockClear();
-    mockScores.loadScores.mockClear();
 
     await toolbarItem(wrapper, "runScoring").clickHandler();
 
@@ -238,38 +249,47 @@ describe("QualityTargets.vue", () => {
       mockScoring.runScoring.mock.invocationCallOrder[0],
     );
     expect(mockScoring.runScoring).toHaveBeenCalledWith({
-      agentId: "seller-product-quality-expert",
-      prompt: "Evaluate this product against all seller product quality targets.",
-      item: { id: "prod-1", name: "Gift Box", objectType: "SellerProduct" },
-      blade: { id: "test-blade-id", name: "QualityTargets", title: "QUALITY.TARGETS.TITLE" },
+      entityType: SELLER_PRODUCT_ENTITY_TYPE,
+      entityIds: ["prod-1"],
       locale: expect.any(String),
     });
+  });
+
+  it("reloads targets and scores when a run of the product is over, wherever it was started", async () => {
+    await mountBlade(QualityTargets);
+    await flushPromises();
+    mockTargets.searchTargets.mockClear();
+    mockScores.loadScores.mockClear();
+
+    scoringOptions?.onFinished?.({ entityType: SELLER_PRODUCT_ENTITY_TYPE, entityIds: ["prod-0", "prod-1"] });
+    await flushPromises();
+
     expect(mockTargets.searchTargets).toHaveBeenCalledTimes(1);
     expect(mockScores.loadScores).toHaveBeenCalledWith("prod-1");
   });
 
-  it("run scoring falls back to the entity name option without an item", async () => {
-    initMocks({ entityType: SELLER_PRODUCT_ENTITY_TYPE, entityId: "prod-1", entityName: "Gift Box" });
-    const wrapper = await mountBlade(QualityTargets);
+  it.each([
+    ["other products", { entityType: SELLER_PRODUCT_ENTITY_TYPE, entityIds: ["prod-2"] }],
+    ["offers with the same id", { entityType: OFFER_ENTITY_TYPE, entityIds: ["prod-1"] }],
+  ])("does not reload when a run of %s is over", async (_label, message) => {
+    await mountBlade(QualityTargets);
+    await flushPromises();
+    mockScores.loadScores.mockClear();
 
-    await toolbarItem(wrapper, "runScoring").clickHandler();
+    scoringOptions?.onFinished?.(message);
+    await flushPromises();
 
-    expect(mockScoring.runScoring.mock.calls[0][0].item).toEqual({
-      id: "prod-1",
-      name: "Gift Box",
-      objectType: undefined,
-    });
+    expect(mockScores.loadScores).not.toHaveBeenCalled();
   });
 
-  it("reloads the scores even when scoring fails", async () => {
-    mockScoring.runScoring.mockRejectedValue(new Error("503: agent failed"));
+  it("does not reload right after starting a run", async () => {
     const wrapper = await mountBlade(QualityTargets);
     await flushPromises();
     mockScores.loadScores.mockClear();
 
-    await expect(toolbarItem(wrapper, "runScoring").clickHandler()).resolves.toBeUndefined();
+    await toolbarItem(wrapper, "runScoring").clickHandler();
 
-    expect(mockScores.loadScores).toHaveBeenCalledWith("prod-1");
+    expect(mockScores.loadScores).not.toHaveBeenCalled();
   });
 
   it("does not run scoring without an entity id", async () => {
@@ -282,7 +302,7 @@ describe("QualityTargets.vue", () => {
     expect(mockBlade.closeChildren).not.toHaveBeenCalled();
   });
 
-  it("disables run scoring while scoring", async () => {
+  it("disables run scoring while any run is going, like every run scoring button", async () => {
     const wrapper = await mountBlade(QualityTargets);
     const runScoring = toolbarItem(wrapper, "runScoring");
 
@@ -291,14 +311,7 @@ describe("QualityTargets.vue", () => {
     expect(runScoring.disabled).toBe(true);
   });
 
-  it("hides run scoring when no AI agent is configured", async () => {
-    mockScoring.canScore.value = false;
-    const wrapper = await mountBlade(QualityTargets);
-
-    expect(toolbarItem(wrapper, "runScoring").isVisible).toBe(false);
-  });
-
-  it("run scoring calls the offer quality expert for an offer", async () => {
+  it("run scoring scores an offer as an offer", async () => {
     initMocks({ entityType: OFFER_ENTITY_TYPE, entityId: "offer-1", entityName: "Gift Box offer" });
     const wrapper = await mountBlade(QualityTargets);
 
@@ -306,11 +319,7 @@ describe("QualityTargets.vue", () => {
     await toolbarItem(wrapper, "runScoring").clickHandler();
 
     expect(mockScoring.runScoring).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agentId: "offer-quality-expert",
-        prompt: "Evaluate this offer against all offer quality targets.",
-        item: { id: "offer-1", name: "Gift Box offer", objectType: undefined },
-      }),
+      expect.objectContaining({ entityType: OFFER_ENTITY_TYPE, entityIds: ["offer-1"] }),
     );
   });
 

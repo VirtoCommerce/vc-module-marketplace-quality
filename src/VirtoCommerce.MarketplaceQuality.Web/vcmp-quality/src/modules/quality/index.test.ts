@@ -5,11 +5,14 @@ import { describe, it, expect, vi } from "vitest";
 // ---------------------------------------------------------------------------
 const registerExternalWidget = vi.fn();
 const defineAppModule = vi.fn((options: unknown) => ({ install: vi.fn(), options }));
+const registerListScoring = vi.fn();
 
 vi.mock("@vc-shell/framework", () => ({
   registerExternalWidget,
   defineAppModule,
 }));
+
+vi.mock("./listScoring", () => ({ registerListScoring }));
 
 vi.mock("./pages", () => ({
   QualityTargets: { name: "QualityTargets" },
@@ -60,6 +63,12 @@ describe("quality app module", () => {
     const vnode = renderWrapper(widget);
     expect(vnode.type).toEqual({ name: "QualityWidget" });
     expect(vnode.props).toEqual({ entityType });
+  });
+
+  it("adds the bulk run scoring button to the list blades of the quality entity types", async () => {
+    const { QUALITY_ENTITIES } = await import("./entities");
+
+    expect(registerListScoring).toHaveBeenCalledWith(QUALITY_ENTITIES);
   });
 
   it("shows the widgets only for an opened (saved) entity", () => {

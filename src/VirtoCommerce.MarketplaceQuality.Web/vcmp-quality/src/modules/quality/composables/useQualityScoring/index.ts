@@ -1,94 +1,149 @@
-import { computed, type ComputedRef } from "vue";
-import { useAsync, useUser } from "@vc-shell/framework";
-import { useAiAgent } from "@vc-shell/framework/ai-agent";
+import { computed, getCurrentScope, onScopeDispose, reactive, ref, type ComputedRef } from "vue";
+import { notification, useNotificationStore, useUser, type PushNotification } from "@vc-shell/framework";
+
+export const QUALITY_SCORING_NOTIFY_TYPE = "QualityScoringPushNotification";
+
+/**
+ * A scoring run sends a progress notification (its id is the run id), updated after each batch,
+ * and a final notification with `finished` set and an id of its own. Both carry the `runId`.
+ */
+export interface QualityScoringPushNotification extends PushNotification {
+  runId?: string;
+  entityType?: string;
+  /** Entities of the run; entities already being scored by another run are left out. */
+  entityIds?: string[];
+  totalCount?: number;
+  processedCount?: number;
+  failedCount?: number;
+  finished?: string | Date;
+  errors?: string[];
+}
 
 export interface IRunScoringArgs {
-  /** Quality expert agent of the entity type, and the message it is sent. */
-  agentId: string;
-  prompt: string;
-  item: { id: string; name?: string; objectType?: string };
-  blade: { id: string; name: string; title: string };
+  entityType: string;
+  entityIds: string[];
   locale: string;
 }
 
-export interface IUseQualityScoring {
-  scoring: ComputedRef<boolean>;
-  canScore: ComputedRef<boolean>;
-  runScoring: (args?: IRunScoringArgs) => Promise<void>;
+interface IScoringRun {
+  entityType: string;
+  entityIds: string[];
 }
 
-export function useQualityScoring(): IUseQualityScoring {
-  const aiAgent = useAiAgent();
-  const { getAccessToken } = useUser();
+// Shared by every "Run scoring" button and blade of the module: the runs started in this browser,
+// by run id, until their final notification arrives.
+const runs = reactive(new Map<string, IScoringRun>());
+const starting = ref(0);
+// A run that fails at once can finish before its start request returns
+const finishedEarly = new Map<string, QualityScoringPushNotification>();
+const finishedListeners = new Set<(message: QualityScoringPushNotification) => void>();
+let unsubscribe: (() => void) | undefined;
 
-  const chatUrl = computed(() => {
-    const agentUrl = aiAgent?.config.value.url;
-    return agentUrl ? new URL("/api/chat", agentUrl).toString() : undefined;
+/** A run started in this browser is starting or running; every "Run scoring" button is disabled meanwhile. */
+const scoring = computed(() => starting.value > 0 || runs.size > 0);
+
+function finish(message: QualityScoringPushNotification) {
+  finishedListeners.forEach((listener) => listener(message));
+}
+
+function onFinalNotification(message: QualityScoringPushNotification) {
+  const runId = message.runId!;
+  if (runs.delete(runId)) {
+    finish(message);
+  } else if (starting.value > 0) {
+    finishedEarly.set(runId, message);
+  }
+}
+
+// Subscribed on first use, after the shell has set up its notification store
+function ensureSubscribed() {
+  unsubscribe ??= useNotificationStore().subscribe({
+    types: [QUALITY_SCORING_NOTIFY_TYPE],
+    filter: (message) => !!(message as QualityScoringPushNotification).finished && !!(message as QualityScoringPushNotification).runId,
+    handler: (message) => onFinalNotification(message as QualityScoringPushNotification),
   });
+}
 
-  const { action: runScoring, loading } = useAsync<IRunScoringArgs>(async (args) => {
-    if (!args?.item.id || !args.agentId) return;
-    if (!chatUrl.value) throw new Error("AI agent URL is not configured");
+/**
+ * Starts scoring the entities on the platform. The entity's AI expert saves the evaluations itself;
+ * the run's notifications show its progress and outcome. Does nothing while another run is going,
+ * and shows why a run could not be started. Works outside a component setup too (e.g. in a toolbar click handler).
+ */
+export async function startQualityScoring(args: IRunScoringArgs): Promise<void> {
+  if (!args.entityType || !args.entityIds.length || scoring.value) return;
 
-    const response = await fetch(chatUrl.value, {
+  ensureSubscribed();
+  starting.value++;
+  try {
+    const { getAccessToken } = useUser();
+    const response = await fetch("/api/vcmp/quality/scoring", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${await getAccessToken()}`,
       },
-      body: JSON.stringify({
-        type: "message",
-        agent_id: args.agentId,
-        message: args.prompt,
-        thread_id: crypto.randomUUID(),
-        context: {
-          context_type: "details",
-          locale: args.locale,
-          blade: args.blade,
-          item: { id: args.item.id, objectType: args.item.objectType ?? "", name: args.item.name },
-        },
-      }),
+      body: JSON.stringify(args),
     });
 
     if (!response.ok) {
-      // 404 unknown agent, 422 malformed request, 503 agent failed to start
+      // 400 unknown or too many entities, 403 not the seller's entity, 409 already running, 503 queue full
       throw new Error(`${response.status}: ${await response.text()}`);
     }
 
-    const errorMessage = await readErrors(response);
-    if (errorMessage) throw new Error(errorMessage);
-  });
+    const progress: QualityScoringPushNotification = await response.json();
+    const runId = progress.runId ?? progress.id!;
+    const finished = finishedEarly.get(runId);
+    if (finished) {
+      finish(finished);
+    } else {
+      runs.set(runId, { entityType: args.entityType, entityIds: progress.entityIds ?? args.entityIds });
+    }
+  } catch (e) {
+    notification.error(e instanceof Error ? e.message : String(e));
+  } finally {
+    starting.value--;
+    if (!starting.value) finishedEarly.clear();
+  }
+}
+
+export interface IUseQualityScoringOptions {
+  /** Called when a run started in this browser is over, successfully or not. */
+  onFinished?: (notification: QualityScoringPushNotification) => void;
+}
+
+export interface IUseQualityScoring {
+  /** A run started in this browser is starting or running. */
+  scoring: ComputedRef<boolean>;
+  /** The entity is in a run started in this browser. */
+  isEntityScoring: (entityType: string, entityId?: string) => boolean;
+  runScoring: (args: IRunScoringArgs) => Promise<void>;
+}
+
+export function useQualityScoring(options: IUseQualityScoringOptions = {}): IUseQualityScoring {
+  ensureSubscribed();
+
+  const { onFinished } = options;
+  if (onFinished) {
+    finishedListeners.add(onFinished);
+    if (getCurrentScope()) {
+      onScopeDispose(() => finishedListeners.delete(onFinished));
+    }
+  }
 
   return {
-    scoring: computed(() => loading.value),
-    canScore: computed(() => !!chatUrl.value),
-    runScoring,
+    scoring,
+    isEntityScoring: (entityType, entityId) =>
+      !!entityId && [...runs.values()].some((run) => run.entityType === entityType && run.entityIds.includes(entityId)),
+    runScoring: startQualityScoring,
   };
 }
 
-async function readErrors(response: Response): Promise<string | undefined> {
-  if (!response.body) return undefined;
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let errorMessage: string | undefined;
-
-  const handleLine = (line: string) => {
-    if (!line.trim()) return;
-    const event = JSON.parse(line);
-    if (event.type === "error") errorMessage = event.message;
-  };
-
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    lines.forEach(handleLine);
-  }
-  handleLine(buffer + decoder.decode());
-
-  return errorMessage;
+/** Clears the shared state; for tests. */
+export function resetQualityScoring() {
+  runs.clear();
+  starting.value = 0;
+  finishedEarly.clear();
+  finishedListeners.clear();
+  unsubscribe?.();
+  unsubscribe = undefined;
 }
