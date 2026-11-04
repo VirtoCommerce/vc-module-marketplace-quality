@@ -75,3 +75,4 @@ public class Module : IModule, IHasConfiguration
         // Nothing to do here
     }
 }
+
