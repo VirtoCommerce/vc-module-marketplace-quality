@@ -6,11 +6,12 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using VirtoCommerce.AI.Core.Models;
+using VirtoCommerce.AI.Core.Services;
 using VirtoCommerce.MarketplaceQuality.Core;
 using VirtoCommerce.MarketplaceQuality.Core.Models;
 using VirtoCommerce.MarketplaceQuality.Core.PushNotifications;
 using VirtoCommerce.MarketplaceQuality.Core.Services;
-using VirtoCommerce.MarketplaceQuality.Data.VirtoOz;
 using VirtoCommerce.Platform.Core.PushNotifications;
 using VirtoCommerce.Platform.Core.Settings;
 
@@ -152,13 +153,19 @@ public class QualityScoringWorker : BackgroundService
 
     protected virtual async Task RunWithRetriesAsync(QualityScoringTask task, IList<string> entityIds, CancellationToken stoppingToken)
     {
+        // The context is shaped after the vendor portal blades: the details blade of one entity, or a list blade with selected rows
+        var items = entityIds.Select(entityId => new { id = entityId, objectType = task.EntityType }).ToList();
+        var blade = new { id = "quality-scoring", name = "QualityScoring", title = "Quality scoring" };
+
+        object context = items.Count == 1
+            ? new { context_type = "details", locale = task.Locale, blade, item = items[0] }
+            : new { context_type = "list", locale = task.Locale, blade, items };
+
         var message = new VirtoOzChatMessage
         {
             AgentId = task.Agent.AgentId,
             Message = task.Agent.Prompt,
-            Locale = task.Locale,
-            EntityType = task.EntityType,
-            EntityIds = entityIds,
+            Context = context,
         };
 
         for (var attempt = 1; ; attempt++)

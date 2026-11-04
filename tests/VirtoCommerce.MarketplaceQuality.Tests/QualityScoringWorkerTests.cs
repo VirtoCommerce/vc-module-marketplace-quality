@@ -1,15 +1,14 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using VirtoCommerce.AI.Core.Models;
+using VirtoCommerce.AI.Core.Services;
 using VirtoCommerce.MarketplaceQuality.Core;
 using VirtoCommerce.MarketplaceQuality.Core.Models;
 using VirtoCommerce.MarketplaceQuality.Core.PushNotifications;
 using VirtoCommerce.MarketplaceQuality.Data.Services;
-using VirtoCommerce.MarketplaceQuality.Data.VirtoOz;
 using VirtoCommerce.Platform.Core.PushNotifications;
 using VirtoCommerce.Platform.Core.Settings;
 using Xunit;
@@ -25,8 +24,8 @@ public class QualityScoringWorkerTests
     private const int BatchSize = 3;
 
     private readonly QualityScoringQueue _queue = new();
-    private readonly FakeChatClient _chatClient = new();
-    private readonly FakePushNotificationManager _pushNotificationManager = new();
+    private readonly VirtoOzChatClientStub _chatClient = new();
+    private readonly PushNotificationManagerStub _pushNotificationManager = new();
     private readonly SettingsManagerStub _settingsManager = new()
     {
         Values = { [ModuleConstants.Settings.General.ScoringBatchSize.Name] = BatchSize },
@@ -42,14 +41,50 @@ public class QualityScoringWorkerTests
         await CreateWorker().ProcessTaskAsync(task);
 
         // Assert
-        var (message, token) = Assert.Single(_chatClient.Calls);
-        Assert.Equal("seller-product-quality-expert", message.AgentId);
-        Assert.Equal("Evaluate this product.", message.Message);
-        Assert.Equal(["prod-1"], message.EntityIds);
-        Assert.Equal("SellerProduct", message.EntityType);
-        Assert.Equal("de-DE", message.Locale);
-        Assert.False(string.IsNullOrEmpty(message.ThreadId));
-        Assert.Equal("token-1", token);
+        var call = Assert.Single(_chatClient.Calls);
+        Assert.Equal("seller-product-quality-expert", call.AgentId);
+        Assert.Equal("Evaluate this product.", call.Message);
+        Assert.False(string.IsNullOrEmpty(call.ThreadId));
+        Assert.Equal("token-1", call.AccessToken);
+    }
+
+    [Fact]
+    public async Task Process_SendsOneEntityAsADetailsContext()
+    {
+        // Arrange
+        var task = CreateTask();
+
+        // Act
+        await CreateWorker().ProcessTaskAsync(task);
+
+        // Assert
+        var context = Assert.Single(_chatClient.Calls).Context;
+        Assert.Equal("details", context.GetProperty("context_type").GetString());
+        Assert.Equal("de-DE", context.GetProperty("locale").GetString());
+        Assert.Equal("QualityScoring", context.GetProperty("blade").GetProperty("name").GetString());
+        Assert.Equal("prod-1", context.GetProperty("item").GetProperty("id").GetString());
+        Assert.Equal("SellerProduct", context.GetProperty("item").GetProperty("objectType").GetString());
+        Assert.False(context.TryGetProperty("items", out _));
+    }
+
+    [Fact]
+    public async Task Process_SendsSeveralEntitiesAsAListContext()
+    {
+        // Arrange
+        var task = CreateTask("prod-1", "prod-2");
+
+        // Act
+        await CreateWorker().ProcessTaskAsync(task);
+
+        // Assert
+        var context = Assert.Single(_chatClient.Calls).Context;
+        Assert.Equal("list", context.GetProperty("context_type").GetString());
+        Assert.Equal("de-DE", context.GetProperty("locale").GetString());
+        Assert.Equal("QualityScoring", context.GetProperty("blade").GetProperty("name").GetString());
+        Assert.False(context.TryGetProperty("item", out _));
+        var items = context.GetProperty("items").EnumerateArray().ToList();
+        Assert.Equal(["prod-1", "prod-2"], items.Select(x => x.GetProperty("id").GetString()));
+        Assert.All(items, x => Assert.Equal("SellerProduct", x.GetProperty("objectType").GetString()));
     }
 
     [Fact]
@@ -78,7 +113,7 @@ public class QualityScoringWorkerTests
     public async Task Process_ReportsTheErrorOfAFailedRun()
     {
         // Arrange
-        _chatClient.Results.Enqueue(new VirtoOzException("404: Agent not found"));
+        _chatClient.Errors.Enqueue(new VirtoOzException("404: Agent not found"));
 
         // Act
         await CreateWorker().ProcessTaskAsync(CreateTask());
@@ -95,7 +130,7 @@ public class QualityScoringWorkerTests
     public async Task Process_HidesTheDetailsOfAnUnexpectedError()
     {
         // Arrange
-        _chatClient.Results.Enqueue(new InvalidOperationException("secret details"));
+        _chatClient.Errors.Enqueue(new InvalidOperationException("secret details"));
 
         // Act
         await CreateWorker().ProcessTaskAsync(CreateTask());
@@ -108,14 +143,14 @@ public class QualityScoringWorkerTests
     public async Task Process_RetriesATransientError_InANewThread()
     {
         // Arrange
-        _chatClient.Results.Enqueue(new VirtoOzException("429: quota", isTransient: true, retryAfter: TimeSpan.Zero));
+        _chatClient.Errors.Enqueue(new VirtoOzException("429: quota", isTransient: true, retryAfter: TimeSpan.Zero));
 
         // Act
         await CreateWorker().ProcessTaskAsync(CreateTask());
 
         // Assert
         Assert.Equal(2, _chatClient.Calls.Count);
-        Assert.NotEqual(_chatClient.Calls[0].Message.ThreadId, _chatClient.Calls[1].Message.ThreadId);
+        Assert.NotEqual(_chatClient.Calls[0].ThreadId, _chatClient.Calls[1].ThreadId);
         Assert.Empty(_pushNotificationManager.Sent.Last().Errors);
     }
 
@@ -125,7 +160,7 @@ public class QualityScoringWorkerTests
         // Arrange
         for (var i = 0; i < QualityScoringWorker.MaxAttempts; i++)
         {
-            _chatClient.Results.Enqueue(new VirtoOzException($"503: busy {i}", isTransient: true, retryAfter: TimeSpan.Zero));
+            _chatClient.Errors.Enqueue(new VirtoOzException($"503: busy {i}", isTransient: true, retryAfter: TimeSpan.Zero));
         }
 
         // Act
@@ -142,7 +177,7 @@ public class QualityScoringWorkerTests
         // Arrange
         var task = CreateTask("prod-1", "prod-2");
         _queue.Enqueue(task);
-        _chatClient.Results.Enqueue(new VirtoOzException("failed"));
+        _chatClient.Errors.Enqueue(new VirtoOzException("failed"));
         var again = CreateTask("prod-1", "prod-2");
 
         // Act
@@ -168,8 +203,8 @@ public class QualityScoringWorkerTests
         // Assert
         Assert.Equal(
             entityIds.Chunk(BatchSize).Select(x => x.ToList()),
-            _chatClient.Calls.Select(x => x.Message.EntityIds.ToList()));
-        Assert.Equal(_chatClient.Calls.Count, _chatClient.Calls.Select(x => x.Message.ThreadId).Distinct().Count());
+            _chatClient.Calls.Select(x => x.GetEntityIds().ToList()));
+        Assert.Equal(_chatClient.Calls.Count, _chatClient.Calls.Select(x => x.ThreadId).Distinct().Count());
 
         var finished = _pushNotificationManager.Sent.Last();
         Assert.Equal($"Quality scoring of {entityIds.Length} items is completed", finished.Title);
@@ -186,7 +221,7 @@ public class QualityScoringWorkerTests
         await CreateWorker().ProcessTaskAsync(CreateTask(entityIds));
 
         // Assert
-        var progress =_pushNotificationManager.Sent.SkipLast(1).ToList();
+        var progress = _pushNotificationManager.Sent.SkipLast(1).ToList();
         Assert.All(progress, x =>
         {
             Assert.Equal("run-1", x.Id);
@@ -220,7 +255,7 @@ public class QualityScoringWorkerTests
         await CreateWorker().ProcessTaskAsync(CreateTask(entityIds));
 
         // Assert
-        Assert.Equal(expectedBatchSize, _chatClient.Calls[0].Message.EntityIds.Count);
+        Assert.Equal(expectedBatchSize, _chatClient.Calls[0].GetEntityIds().Count);
     }
 
     [Fact]
@@ -228,7 +263,7 @@ public class QualityScoringWorkerTests
     {
         // Arrange
         var entityIds = Enumerable.Range(1, BatchSize + 2).Select(i => $"prod-{i}").ToArray();
-        _chatClient.Results.Enqueue(new VirtoOzException("Tool failed"));
+        _chatClient.Errors.Enqueue(new VirtoOzException("Tool failed"));
 
         // Act
         await CreateWorker().ProcessTaskAsync(CreateTask(entityIds));
@@ -247,8 +282,8 @@ public class QualityScoringWorkerTests
     {
         // Arrange
         var entityIds = Enumerable.Range(1, BatchSize + 1).Select(i => $"prod-{i}").ToArray();
-        _chatClient.Results.Enqueue(new VirtoOzException("the session has expired"));
-        _chatClient.Results.Enqueue(new VirtoOzException("the session has expired"));
+        _chatClient.Errors.Enqueue(new VirtoOzException("the session has expired"));
+        _chatClient.Errors.Enqueue(new VirtoOzException("the session has expired"));
 
         // Act
         await CreateWorker().ProcessTaskAsync(CreateTask(entityIds));
@@ -282,7 +317,7 @@ public class QualityScoringWorkerTests
             Locale = "de-DE",
             Agent = new QualityScoringAgent { AgentId = "seller-product-quality-expert", Prompt = "Evaluate this product." },
             AccessToken = "token-1",
-            // As queued by the controller: the progress notification's id is the run id
+            // As queued by the command handler: the progress notification's id is the run id
             Notification = new QualityScoringPushNotification("seller-1")
             {
                 Id = "run-1",
@@ -301,59 +336,5 @@ public class QualityScoringWorkerTests
         : QualityScoringWorker(queue, scopeFactory, pushNotificationManager, settingsManager, NullLogger<QualityScoringWorker>.Instance)
     {
         public Task ProcessTaskAsync(QualityScoringTask task) => ProcessAsync(task, TestContext.Current.CancellationToken);
-    }
-
-    private sealed class FakeChatClient : IVirtoOzChatClient
-    {
-        public List<(VirtoOzChatMessage Message, string Token)> Calls { get; } = [];
-
-        /// <summary>
-        /// Exceptions thrown by the next calls; a call succeeds when none is left.
-        /// </summary>
-        public Queue<Exception> Results { get; } = new();
-
-        public Task SendMessageAsync(VirtoOzChatMessage message, string accessToken, CancellationToken cancellationToken)
-        {
-            Calls.Add((new VirtoOzChatMessage
-            {
-                AgentId = message.AgentId,
-                Message = message.Message,
-                ThreadId = message.ThreadId,
-                Locale = message.Locale,
-                EntityType = message.EntityType,
-                EntityIds = message.EntityIds.ToList(),
-            }, accessToken));
-
-            return Results.TryDequeue(out var exception) ? Task.FromException(exception) : Task.CompletedTask;
-        }
-    }
-
-    /// <summary>
-    /// Records a snapshot of each sent notification, since the worker sends the same notification object again when the run is over.
-    /// </summary>
-    private sealed class FakePushNotificationManager : IPushNotificationManager
-    {
-        public List<QualityScoringPushNotification> Sent { get; } = [];
-
-        public void Send(PushNotification notification) => SendAsync(notification).GetAwaiter().GetResult();
-
-        public Task SendAsync(PushNotification notification)
-        {
-            var source = (QualityScoringPushNotification)notification;
-            Sent.Add(new QualityScoringPushNotification(source.Creator)
-            {
-                Id = source.Id,
-                RunId = source.RunId,
-                Title = source.Title,
-                Finished = source.Finished,
-                TotalCount = source.TotalCount,
-                ProcessedCount = source.ProcessedCount,
-                FailedCount = source.FailedCount,
-                Errors = source.Errors.ToList(),
-            });
-            return Task.CompletedTask;
-        }
-
-        public PushNotificationSearchResult SearchNotifies(string userId, PushNotificationSearchCriteria criteria) => throw new NotSupportedException();
     }
 }

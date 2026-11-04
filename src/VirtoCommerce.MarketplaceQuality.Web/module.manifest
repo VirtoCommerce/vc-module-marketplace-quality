@@ -7,8 +7,9 @@
   <platformVersion>3.1071.0</platformVersion>
   <dependencies>
     <!--<dependency id="VirtoCommerce.Core" version="3.1012.0" />-->
-    <dependency id="VirtoCommerce.MarketplaceVendor" version="3.1001.0" />
+    <dependency id="VirtoCommerce.AI" version="3.1001.0-alpha.43-dev" />
     <dependency id="VirtoCommerce.CatalogQuality" version="3.1000.0-alpha.7" />
+    <dependency id="VirtoCommerce.MarketplaceVendor" version="3.1001.0" />
   </dependencies>
 
   <title>VirtoCommerce MarketplaceQuality</title>
