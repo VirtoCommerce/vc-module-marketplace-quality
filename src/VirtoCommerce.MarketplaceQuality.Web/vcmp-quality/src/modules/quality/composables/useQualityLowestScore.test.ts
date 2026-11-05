@@ -6,7 +6,7 @@ import { mockUseAsync } from "../../../test/harness/mockFramework";
 // ---------------------------------------------------------------------------
 // Shared mock state
 // ---------------------------------------------------------------------------
-let client: { dataSearch: ReturnType<typeof vi.fn> };
+let client: { dataSearch: ReturnType<typeof vi.fn>; targetSearch: ReturnType<typeof vi.fn> };
 const getApiClientFn = vi.fn();
 let onFinished: ((message: Record<string, unknown>) => void) | undefined;
 
@@ -35,6 +35,13 @@ vi.mock("./useQualityScoring", () => ({
 const { useQualityLowestScore } = await import("./useQualityLowestScore");
 const { SELLER_PRODUCT_ENTITY_TYPE, OFFER_ENTITY_TYPE } = await import("../entities");
 
+// The existing targets t0…t{count-1}, served page by page
+const targets = (count: number) => ({ skip = 0, take = 100 }: { skip?: number; take?: number }) =>
+  Promise.resolve({
+    results: Array.from({ length: count }, (_, i) => ({ id: `t${i}` })).slice(skip, skip + take),
+    totalCount: count,
+  });
+
 const page = (scores: Array<number | undefined>) => ({
   results: scores.map((readinessScore, i) => ({ targetId: `t${i}`, readinessScore })),
   totalCount: scores.length,
@@ -44,7 +51,10 @@ describe("useQualityLowestScore", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     onFinished = undefined;
-    client = { dataSearch: vi.fn().mockResolvedValue(page([57])) };
+    client = {
+      dataSearch: vi.fn().mockResolvedValue(page([57])),
+      targetSearch: vi.fn().mockImplementation(targets(10)),
+    };
     getApiClientFn.mockResolvedValue(client);
   });
 
@@ -61,10 +71,49 @@ describe("useQualityLowestScore", () => {
     expect(score.value).toBe(57);
   });
 
+  it("searches the targets of the entity type", async () => {
+    useQualityLowestScore(ref("prod-1"), SELLER_PRODUCT_ENTITY_TYPE);
+    await flushPromises();
+
+    expect(client.targetSearch).toHaveBeenCalledWith({ entityType: SELLER_PRODUCT_ENTITY_TYPE, skip: 0, take: 100 });
+  });
+
+  it("ignores the score of a target that no longer exists", async () => {
+    client.targetSearch.mockImplementation(targets(2));
+    client.dataSearch.mockResolvedValue(page([57, 80, 12]));
+
+    const { score } = useQualityLowestScore(ref("prod-1"), SELLER_PRODUCT_ENTITY_TYPE);
+    await flushPromises();
+
+    expect(score.value).toBe(57);
+  });
+
+  it("is undefined when the entity type has no targets", async () => {
+    client.targetSearch.mockImplementation(targets(0));
+
+    const { score } = useQualityLowestScore(ref("prod-1"), SELLER_PRODUCT_ENTITY_TYPE);
+    await flushPromises();
+
+    expect(score.value).toBeUndefined();
+  });
+
+  it("pages through the targets until the total count is reached", async () => {
+    client.targetSearch.mockImplementation(targets(101));
+    client.dataSearch.mockResolvedValue({ results: [{ targetId: "t100", readinessScore: 12 }], totalCount: 1 });
+
+    const { score } = useQualityLowestScore(ref("prod-1"), SELLER_PRODUCT_ENTITY_TYPE);
+    await flushPromises();
+
+    expect(client.targetSearch).toHaveBeenCalledTimes(2);
+    expect(client.targetSearch).toHaveBeenLastCalledWith(expect.objectContaining({ skip: 100 }));
+    expect(score.value).toBe(12);
+  });
+
   it("searches under the given entity type", async () => {
     useQualityLowestScore(ref("offer-1"), OFFER_ENTITY_TYPE);
     await flushPromises();
 
+    expect(client.targetSearch).toHaveBeenCalledWith(expect.objectContaining({ entityType: OFFER_ENTITY_TYPE }));
     expect(client.dataSearch).toHaveBeenCalledWith(
       expect.objectContaining({ entityId: "offer-1", entityType: OFFER_ENTITY_TYPE }),
     );
@@ -106,7 +155,8 @@ describe("useQualityLowestScore", () => {
     expect(score.value).toBeUndefined();
   });
 
-  it("pages through results until the total count is reached", async () => {
+  it("pages through the evaluations until the total count is reached", async () => {
+    client.targetSearch.mockImplementation(targets(101));
     const firstPage = Array.from({ length: 100 }, (_, i) => ({ targetId: `t${i}`, readinessScore: 50 + (i % 10) }));
     client.dataSearch
       .mockResolvedValueOnce({ results: firstPage, totalCount: 101 })
@@ -124,6 +174,7 @@ describe("useQualityLowestScore", () => {
     const { score } = useQualityLowestScore(ref<string | undefined>(undefined), SELLER_PRODUCT_ENTITY_TYPE);
     await flushPromises();
 
+    expect(client.targetSearch).not.toHaveBeenCalled();
     expect(client.dataSearch).not.toHaveBeenCalled();
     expect(score.value).toBeUndefined();
   });
@@ -165,7 +216,7 @@ describe("useQualityLowestScore", () => {
   });
 
   it("shows nothing instead of failing when the seller lacks permission", async () => {
-    client.dataSearch.mockRejectedValue(new Error("403 Forbidden"));
+    client.targetSearch.mockRejectedValue(new Error("403 Forbidden"));
 
     const { score, loading } = useQualityLowestScore(ref("prod-1"), SELLER_PRODUCT_ENTITY_TYPE);
     await flushPromises();

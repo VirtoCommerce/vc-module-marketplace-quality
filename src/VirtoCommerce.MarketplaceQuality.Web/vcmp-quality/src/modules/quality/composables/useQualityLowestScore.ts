@@ -5,7 +5,24 @@ import { useQualityScoring } from "./useQualityScoring";
 
 const PAGE_SIZE = 100;
 
-/** The lowest readiness score of the entity across its scored targets; undefined while nothing is scored. */
+/** Loads every page of a skip/take search. */
+async function searchAll<T>(
+  search: (skip: number, take: number) => Promise<{ results?: T[]; totalCount?: number } | undefined>,
+): Promise<T[]> {
+  const all: T[] = [];
+  for (;;) {
+    const page = await search(all.length, PAGE_SIZE);
+    const items = page?.results ?? [];
+    all.push(...items);
+    if (!items.length || all.length >= (page?.totalCount ?? 0)) break;
+  }
+  return all;
+}
+
+/**
+ * The lowest readiness score of the entity across the existing targets of its type;
+ * undefined while none of them is scored.
+ */
 export function useQualityLowestScore(entityId: Ref<string | undefined>, entityType: string) {
   const { getApiClient } = useApiClient(CatalogQualityClient);
 
@@ -20,21 +37,20 @@ export function useQualityLowestScore(entityId: Ref<string | undefined>, entityT
 
     const client = await getApiClient();
     try {
-      let lowest: number | undefined;
-      let skip = 0;
+      // An evaluation may outlive its target, so only the scores of the current targets count —
+      // the same ones the targets blade lists.
+      const [targets, evaluations] = await Promise.all([
+        searchAll((skip, take) => client.targetSearch({ entityType, skip, take })),
+        searchAll((skip, take) => client.dataSearch({ entityId: id, entityType, skip, take })),
+      ]);
+      const targetIds = new Set(targets.map((target) => target.id));
 
-      // An entity has at most one evaluation per target, so this is normally a single page.
-      for (;;) {
-        const page = await client.dataSearch({ entityId: id, entityType, skip, take: PAGE_SIZE });
-        const items = page?.results ?? [];
-        for (const data of items) {
-          if (data.targetId) {
-            const value = data.readinessScore ?? 0;
-            lowest = lowest === undefined ? value : Math.min(lowest, value);
-          }
+      let lowest: number | undefined;
+      for (const data of evaluations) {
+        if (data.targetId && targetIds.has(data.targetId)) {
+          const value = data.readinessScore ?? 0;
+          lowest = lowest === undefined ? value : Math.min(lowest, value);
         }
-        skip += items.length;
-        if (!items.length || skip >= (page?.totalCount ?? 0)) break;
       }
 
       score.value = lowest;
