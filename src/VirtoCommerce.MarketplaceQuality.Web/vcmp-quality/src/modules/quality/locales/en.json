@@ -1,7 +1,8 @@
 {
   "QUALITY": {
     "WIDGET": {
-      "TITLE": "Quality"
+      "TITLE": "Quality",
+      "NOT_SCORED": "N/A"
     },
     "TARGETS": {
       "TITLE": "Quality targets",

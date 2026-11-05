@@ -2,7 +2,8 @@
   <VcWidget
     icon="lucide-gauge"
     :title="$t('QUALITY.WIDGET.TITLE')"
-    :value="count"
+    :value="score ?? $t('QUALITY.WIDGET.NOT_SCORED')"
+    :badge-variant="badgeVariant"
     :disabled="loading"
     @click="onClick"
   />
@@ -12,7 +13,7 @@
 import { computed } from "vue";
 import { injectBladeContext, useBlade } from "@vc-shell/framework";
 import { VcWidget } from "@vc-shell/framework/ui";
-import { useQualityTargetCount } from "../composables";
+import { useQualityLowestScore } from "../composables";
 import type { QualityBladeOptions, QualityItem } from "../types";
 
 const props = defineProps<{
@@ -25,10 +26,19 @@ const bladeContext = injectBladeContext();
 // Host details blades (ProductDetails, Offer) expose their entity via defineBladeContext({ item }).
 const item = computed(() => bladeContext.value?.item as QualityItem | undefined);
 
-const { count, loading } = useQualityTargetCount(
+// The badge shows the weakest target's score, so the seller sees how far the entity is from passing them all.
+const { score, loading } = useQualityLowestScore(
   computed(() => item.value?.id),
   props.entityType,
 );
+
+// Red up to 75, yellow up to 90, green above; N/A is grey so it doesn't read as a score.
+const badgeVariant = computed(() => {
+  if (score.value === undefined) return "secondary";
+  if (score.value <= 75) return "danger";
+  if (score.value <= 90) return "warning";
+  return "success";
+});
 
 function onClick() {
   openBlade({
