@@ -250,6 +250,56 @@ describe("useQualityLowestScore", () => {
     expect(client.dataSearch).toHaveBeenCalledTimes(1);
   });
 
+  it("is not loaded until the first load is over", async () => {
+    const { loaded } = useQualityLowestScore(ref("prod-1"), SELLER_PRODUCT_ENTITY_TYPE);
+
+    expect(loaded.value).toBe(false);
+    await flushPromises();
+    expect(loaded.value).toBe(true);
+  });
+
+  it("is loaded when nothing is scored", async () => {
+    client.dataSearch.mockResolvedValue(page([]));
+
+    const { score, loaded } = useQualityLowestScore(ref("prod-1"), SELLER_PRODUCT_ENTITY_TYPE);
+    await flushPromises();
+
+    expect(score.value).toBeUndefined();
+    expect(loaded.value).toBe(true);
+  });
+
+  it("is loaded when the seller lacks permission", async () => {
+    client.targetSearch.mockRejectedValue(new Error("403 Forbidden"));
+
+    const { loaded } = useQualityLowestScore(ref("prod-1"), SELLER_PRODUCT_ENTITY_TYPE);
+    await flushPromises();
+
+    expect(loaded.value).toBe(true);
+  });
+
+  it("is not loaded again while the blade switches to a different entity", async () => {
+    const entityId = ref<string | undefined>("prod-1");
+    const { loaded } = useQualityLowestScore(entityId, SELLER_PRODUCT_ENTITY_TYPE);
+    await flushPromises();
+
+    entityId.value = "prod-2";
+    await nextTick();
+
+    expect(loaded.value).toBe(false);
+    await flushPromises();
+    expect(loaded.value).toBe(true);
+  });
+
+  it("stays loaded while the score is refreshed", async () => {
+    const { loaded, refresh } = useQualityLowestScore(ref("prod-1"), SELLER_PRODUCT_ENTITY_TYPE);
+    await flushPromises();
+
+    const reload = refresh();
+
+    expect(loaded.value).toBe(true);
+    await reload;
+  });
+
   it("refresh reloads the score", async () => {
     const { score, refresh } = useQualityLowestScore(ref("prod-1"), SELLER_PRODUCT_ENTITY_TYPE);
     await flushPromises();

@@ -11,7 +11,11 @@ let mockBlade: ReturnType<typeof createMockBlade>;
 let bladeContext: Ref<Record<string, unknown>>;
 let scoreEntityId: Ref<string | undefined> | undefined;
 let scoreEntityType: string | undefined;
-let mockScore: { score: Ref<number | undefined>; loading: Ref<boolean>; refresh: ReturnType<typeof vi.fn> };
+let mockScore: {
+  score: Ref<number | undefined>;
+  loaded: Ref<boolean>;
+  loading: Ref<boolean>; refresh: ReturnType<typeof vi.fn>;
+};
 
 // ---------------------------------------------------------------------------
 // Module-level mocks (MUST be before dynamic import)
@@ -52,7 +56,7 @@ describe("QualityWidget.vue", () => {
     bladeContext = ref({ item: { id: "prod-1", name: "Gift Box" } });
     scoreEntityId = undefined;
     scoreEntityType = undefined;
-    mockScore = { score: ref<number | undefined>(32), loading: ref(false), refresh: vi.fn() };
+    mockScore = { score: ref<number | undefined>(32), loaded: ref(true), loading: ref(false), refresh: vi.fn() };
   });
 
   it("scores its entity type for the host blade's item", async () => {
@@ -86,6 +90,26 @@ describe("QualityWidget.vue", () => {
     expect(wrapper.findComponent({ name: "VcWidget" }).props("value")).toBe("QUALITY.WIDGET.NOT_SCORED");
   });
 
+  it("shows no badge until the score is loaded", async () => {
+    mockScore.score.value = undefined;
+    mockScore.loaded.value = false;
+    const wrapper = await mountWidget();
+
+    expect(wrapper.findComponent({ name: "VcWidget" }).props("value")).toBeUndefined();
+  });
+
+  it("shows the score once it is loaded", async () => {
+    mockScore.score.value = undefined;
+    mockScore.loaded.value = false;
+    const wrapper = await mountWidget();
+
+    mockScore.score.value = 88;
+    mockScore.loaded.value = true;
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findComponent({ name: "VcWidget" }).props("value")).toBe(88);
+  });
+
   it("shows a zero score as zero, not N/A", async () => {
     mockScore.score.value = 0;
     const wrapper = await mountWidget();
@@ -95,10 +119,10 @@ describe("QualityWidget.vue", () => {
 
   it.each([
     [0, "danger"],
-    [75, "danger"],
-    [76, "warning"],
-    [90, "warning"],
-    [91, "success"],
+    [74, "danger"],
+    [75, "warning"],
+    [89, "warning"],
+    [90, "success"],
     [100, "success"],
   ])("colors a score of %i as %s", async (value, variant) => {
     mockScore.score.value = value;

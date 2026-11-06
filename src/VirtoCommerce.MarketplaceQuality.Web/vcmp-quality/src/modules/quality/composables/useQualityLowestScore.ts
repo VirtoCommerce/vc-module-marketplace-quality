@@ -27,11 +27,14 @@ export function useQualityLowestScore(entityId: Ref<string | undefined>, entityT
   const { getApiClient } = useApiClient(CatalogQualityClient);
 
   const score = ref<number>();
+  // False until the entity's score has been loaded, so "not scored" isn't shown before it is known.
+  const loaded = ref(false);
 
   const { loading, action: loadScore } = useAsync(async () => {
     const id = entityId.value;
     if (!id) {
       score.value = undefined;
+      loaded.value = false;
       return;
     }
 
@@ -59,6 +62,7 @@ export function useQualityLowestScore(entityId: Ref<string | undefined>, entityT
       // raise an error on every entity open; the targets blade reports the failure if opened.
       score.value = undefined;
     }
+    loaded.value = true;
   });
 
   // The expert saves the evaluations itself, so the score is reloaded when a run of this entity is over.
@@ -76,11 +80,13 @@ export function useQualityLowestScore(entityId: Ref<string | undefined>, entityT
     entityId,
     async (newVal, oldVal) => {
       if (newVal && newVal !== oldVal) {
+        // The previous entity's score doesn't apply to this one.
+        loaded.value = false;
         await loadScore();
       }
     },
     { immediate: true },
   );
 
-  return { score, loading, refresh: loadScore };
+  return { score, loaded, loading, refresh: loadScore };
 }
