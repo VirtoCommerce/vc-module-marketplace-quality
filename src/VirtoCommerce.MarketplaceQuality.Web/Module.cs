@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.CatalogQuality.Core.Services;
 using VirtoCommerce.MarketplaceQuality.Core;
 using VirtoCommerce.MarketplaceQuality.Core.Services;
 using VirtoCommerce.MarketplaceQuality.Data;
@@ -15,6 +16,7 @@ using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.Platform.Data.MySql.Extensions;
 using VirtoCommerce.Platform.Data.PostgreSql.Extensions;
 using VirtoCommerce.Platform.Data.SqlServer.Extensions;
+using static VirtoCommerce.MarketplaceQuality.Core.ModuleConstants;
 
 namespace VirtoCommerce.MarketplaceQuality.Web;
 
@@ -59,6 +61,11 @@ public class Module : IModule, IHasConfiguration
         // Register settings
         var settingsRegistrar = serviceProvider.GetRequiredService<ISettingsRegistrar>();
         settingsRegistrar.RegisterSettings(ModuleConstants.Settings.AllSettings, ModuleInfo.Id);
+
+        var registrar = serviceProvider.GetRequiredService<IQualityEntityTypeRegistrar>();
+        registrar.Register(QualityEntityType.SellerProduct, "Seller product");
+        registrar.Register(QualityEntityType.Offer, "Seller offer");
+
 
         // Register permissions
         //var permissionsRegistrar = serviceProvider.GetRequiredService<IPermissionsRegistrar>();
